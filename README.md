@@ -116,6 +116,14 @@ cargo run --release -- scenes/glowing_core.ron --animate 36 --glitch angular-fol
   <img src="gallery/glowing_core_turntable.gif" width="500" alt="Turntable animation of the glowing core scene under angular-fold">
 </p>
 
+`angular-fold`'s wedge symmetry is locked to world-up, not to the camera - so
+orbiting around a faceted crystal cluster reads like a slowly-turning mandala
+rather than a fixed decal on the objects:
+
+<p align="center">
+  <img src="gallery/crystal_angular_fold_turntable.gif" width="500" alt="Turntable animation of the crystal cluster under angular-fold">
+</p>
+
 It even holds up on a real mesh - the Stanford bunny (69,451 triangles)
 under `normal-drift`:
 
