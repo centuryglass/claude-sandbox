@@ -177,6 +177,33 @@ itself (`scenes/earth_environment.ron`):
   <img src="gallery/earth_environment.png" width="500" alt="A mirror sphere and a glass sphere reflecting and refracting an earth photo used as an environment map">
 </p>
 
+### Area lights and soft shadows
+
+The reference 2013 source (`reference/AreaLight.h`, called from
+`MultiReflectionShader.cpp`) has a real `AreaLight` class with a
+`getLightPt` method that picks a jittered point on the light per ray,
+gated behind a comment about needing multiple rays per pixel to pay off.
+That's the standard Monte Carlo soft-shadow technique, and this renderer
+now has its own version: `Light::Rect`, a finite rectangular panel that
+picks a fresh random point on itself for every shadow ray. With enough
+samples per pixel, the many slightly-different shadow rays average into a
+soft penumbra instead of one hard edge - the same reason antialiasing
+falls out for free from multisampling.
+
+Same scene, same light position and roughly the same brightness, only the
+light's shape changes:
+
+<p align="center">
+  <img src="gallery/area_light_hard_shadow.png" width="380"><img src="gallery/area_light_soft_shadow.png" width="380">
+</p>
+
+Left: `Point` (an infinitesimal source - every shadow ray aims at the exact
+same location, so the shadow boundary is razor-sharp no matter the sample
+count). Right: `Rect` (`scenes/area_light_soft_shadow.ron`) - a proper
+penumbra, with the expected soft-shadow grain visible at the edge since
+each pixel is now averaging over both a different lens/AA offset *and* a
+different point on the light.
+
 ### Emissive materials
 
 `Material::Emissive { color, intensity }` radiates its own color/texture
@@ -462,6 +489,8 @@ definition. Shape:
     environment: Some(Image("assets/textures/nebula.png")), // optional, overrides sky_bottom/sky_top
     lights: [
         Point(position: (-4.0, 5.0, 2.0), color: (1.0, 1.0, 1.0), intensity: 40.0),
+        // Rect(center: .., u_axis: .., v_axis: .., color: .., intensity: ..) also works -
+        // a finite area light casting soft shadows, see "Area lights and soft shadows" above.
     ],
     objects: [
         Sphere(center: (0.0, -100.5, -1.0), radius: 100.0, material: Lambertian(albedo: Solid((0.6, 0.6, 0.65)))),

@@ -109,6 +109,8 @@ pub enum CameraKind {
 #[derive(Deserialize)]
 pub enum LightDesc {
     Point { position: Vec3f, color: Vec3f, intensity: f64 },
+    /// See `Light::Rect` - a soft-shadow-casting rectangular area light.
+    Rect { center: Vec3f, u_axis: Vec3f, v_axis: Vec3f, color: Vec3f, intensity: f64 },
 }
 
 #[derive(Deserialize, Clone)]
@@ -193,6 +195,9 @@ impl SceneDesc {
             .into_iter()
             .map(|l| match l {
                 LightDesc::Point { position, color, intensity } => Light::Point { position: v(position), color: v(color), intensity },
+                LightDesc::Rect { center, u_axis, v_axis, color, intensity } => {
+                    Light::Rect { center: v(center), u_axis: v(u_axis), v_axis: v(v_axis), color: v(color), intensity }
+                }
             })
             .collect();
 

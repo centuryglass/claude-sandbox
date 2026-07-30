@@ -122,7 +122,7 @@ fn ray_color(
             let view_dir = -ray.direction.normalized();
             let mut color = scene.ambient * albedo;
             for light in &scene.lights {
-                let sample = light.sample(rec.p);
+                let sample = light.sample(rec.p, rng);
                 let shadow_ray = Ray::new(rec.p, sample.direction);
                 let in_shadow = scene
                     .hit(&shadow_ray, SHADOW_EPS, sample.distance - SHADOW_EPS)
@@ -288,11 +288,6 @@ fn albedo_for(material: &Material, p: Point3, u: f64, v: f64) -> Color {
 /// (not its apparent intent). `state` plays the role of the shared,
 /// by-reference `hit` - every level of recursion mutates it in place, and
 /// nothing here resets it back to the original surface point.
-// `rng` is only ever forwarded to the recursive call, never sampled here -
-// faithful to the original, which had no randomness in this path either.
-// Kept in the signature (not `_rng`) for symmetry with the other recursive
-// glitch functions and in case a future variant wants to add jitter.
-#[allow(clippy::only_used_in_recursion)]
 fn hit_chain_color(scene: &Scene, state: &mut HitChainState, rng: &mut impl Rng) -> Color {
     // Not in the original (which had no emissive materials at all), but the
     // sane behavior: a light source shows its own glow, full stop, rather
@@ -306,7 +301,7 @@ fn hit_chain_color(scene: &Scene, state: &mut HitChainState, rng: &mut impl Rng)
 
     for light in &scene.lights {
         for _ in 0..HIT_CHAIN_REFLECTION_COUNT {
-            let sample = light.sample(state.p);
+            let sample = light.sample(state.p, rng);
             let shadow_ray = Ray::new(state.p, sample.direction);
             let in_shadow = scene.hit(&shadow_ray, SHADOW_EPS, sample.distance - SHADOW_EPS).is_some();
             let shadow_mult = if in_shadow { 0.0 } else { 1.0 };
