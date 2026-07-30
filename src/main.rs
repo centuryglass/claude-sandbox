@@ -56,7 +56,13 @@ struct Cli {
     #[arg(long)]
     gallery: bool,
 
-    /// Output file (single-scene mode) or directory (--gallery mode).
+    /// Render an orbiting turntable animation (this many frames, one full
+    /// revolution around --look-at) to an animated GIF instead of a still.
+    #[arg(long)]
+    animate: Option<u32>,
+
+    /// Output file (single-scene mode, or the .gif in --animate mode) or
+    /// directory (--gallery mode).
     #[arg(short, long, default_value = "renders/output.png")]
     output: PathBuf,
 }
@@ -357,9 +363,13 @@ fn main() -> anyhow::Result<()> {
     };
 
     let height = cli.height.unwrap_or_else(|| (cli.width as f64 / cli.aspect) as u32);
-    let settings = RenderSettings::new(cli.width, height, cli.samples, cli.depth);
-    let scene_desc = SceneDesc::load(&scene_path)?;
+    let settings = RenderSettings::new(cli.width, height, cli.samples, cli.depth).with_glitch(cli.glitch);
 
+    if let Some(frames) = cli.animate {
+        return render_turntable(&scene_path, &settings, cli.aspect, frames, &cli.output);
+    }
+
+    let scene_desc = SceneDesc::load(&scene_path)?;
     if cli.gallery {
         // In gallery mode `--output` names a directory; scene needs
         // rebuilding per mode since meshes are consumed on scene build.
@@ -370,8 +380,85 @@ fn main() -> anyhow::Result<()> {
         }
     } else {
         let scene = scene_desc.build(cli.aspect)?;
-        render_to(&scene, &settings.with_glitch(cli.glitch), &cli.output)?;
+        render_to(&scene, &settings, &cli.output)?;
     }
 
     Ok(())
+}
+
+/// Renders `frames` shots of the scene with the camera orbiting once around
+/// `look_at` (same height and radius as the scene's own `look_from`), and
+/// encodes them into a looping animated GIF. Reloads the scene fresh each
+/// frame since `SceneDesc::build` consumes it (meshes get loaded into live
+/// `Box<dyn Hittable>`s, which aren't cheap to clone) and only the camera
+/// position changes frame to frame.
+fn render_turntable(scene_path: &std::path::Path, settings: &RenderSettings, aspect: f64, frames: u32, output: &std::path::Path) -> anyhow::Result<()> {
+    use image::codecs::gif::{GifEncoder, Repeat};
+    use image::{Delay, Frame};
+
+    anyhow::ensure!(frames > 0, "--animate needs at least 1 frame");
+    if let Some(parent) = output.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let mut gif_frames = Vec::with_capacity(frames as usize);
+    for i in 0..frames {
+        let mut desc = SceneDesc::load(scene_path)?;
+        desc.camera.look_from = orbit_position(desc.camera.look_from, desc.camera.look_at, i, frames);
+
+        let scene = desc.build(aspect)?;
+        let img = render::render(&scene, settings);
+        let rgba = image::DynamicImage::ImageRgb8(img).into_rgba8();
+        gif_frames.push(Frame::from_parts(rgba, 0, 0, Delay::from_numer_denom_ms(1000 / 15, 1)));
+        println!("rendered frame {}/{frames}", i + 1);
+    }
+
+    let file = std::fs::File::create(output)?;
+    let mut encoder = GifEncoder::new(file);
+    encoder.set_repeat(Repeat::Infinite)?;
+    encoder.encode_frames(gif_frames.into_iter())?;
+    println!("wrote {}", output.display());
+    Ok(())
+}
+
+/// Frame `i` of `frames`'s camera position, orbiting `look_from` around
+/// `look_at` at constant height and radius (a "turntable" - the subject
+/// stays put, the camera circles it once over the whole sequence).
+fn orbit_position(look_from: (f64, f64, f64), look_at: (f64, f64, f64), i: u32, frames: u32) -> (f64, f64, f64) {
+    let (lx, ly, lz) = look_from;
+    let (ax, _ay, az) = look_at;
+    let (rx, rz) = (lx - ax, lz - az);
+    let radius = (rx * rx + rz * rz).sqrt();
+    let base_angle = rz.atan2(rx);
+    let angle = base_angle + std::f64::consts::TAU * (i as f64) / (frames as f64);
+    (ax + radius * angle.cos(), ly, az + radius * angle.sin())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn orbit_returns_to_start_after_a_full_revolution() {
+        let start = (0.0, 0.7, 2.3);
+        let look_at = (0.0, 0.1, -1.0);
+        let frames = 12;
+        let back = orbit_position(start, look_at, frames, frames);
+        assert!((back.0 - start.0).abs() < 1e-9);
+        assert!((back.1 - start.1).abs() < 1e-9);
+        assert!((back.2 - start.2).abs() < 1e-9);
+    }
+
+    #[test]
+    fn orbit_preserves_radius_and_height() {
+        let start: (f64, f64, f64) = (0.0, 0.7, 2.3);
+        let look_at: (f64, f64, f64) = (0.0, 0.1, -1.0);
+        let start_radius = (start.0 - look_at.0).hypot(start.2 - look_at.2);
+        for i in 0..8 {
+            let p = orbit_position(start, look_at, i, 8);
+            assert!((p.1 - start.1).abs() < 1e-9, "height should stay constant");
+            let radius = (p.0 - look_at.0).hypot(p.2 - look_at.2);
+            assert!((radius - start_radius).abs() < 1e-9, "radius should stay constant");
+        }
+    }
 }

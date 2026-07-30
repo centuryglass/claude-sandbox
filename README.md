@@ -102,6 +102,20 @@ petal shape entirely as a side effect of folding the reflection/refraction
 angle - not something anyone designed, just what falls out of applying a
 literal optical trick to a glowing object seen through glass.
 
+### Turntable animation
+
+`--animate <frames>` orbits the camera once around `look_at` (same height
+and radius as the scene's own `look_from`) and encodes the sequence as a
+looping animated GIF instead of a still:
+
+```sh
+cargo run --release -- scenes/glowing_core.ron --animate 36 --glitch angular-fold -o out.gif
+```
+
+<p align="center">
+  <img src="gallery/glowing_core_turntable.gif" width="500" alt="Turntable animation of the glowing core scene under angular-fold">
+</p>
+
 It even holds up on a real mesh - the Stanford bunny (69,451 triangles)
 under `normal-drift`:
 
@@ -128,12 +142,16 @@ cargo run --release -- scenes/crystal_showcase.ron --glitch axis-swap-reflect -o
 # ...or every glitch mode at once, one file per mode
 cargo run --release -- scenes/crystal_showcase.ron --gallery -o renders/gallery/
 
+# ...or a looping turntable GIF, camera orbiting once around look_at
+cargo run --release -- scenes/glowing_core.ron --animate 36 --glitch angular-fold -o out.gif
+
 # Options
 cargo run --release -- --help
 ```
 
 Key flags: `--width`/`--height`/`--aspect`, `--samples` (antialiasing /
-glass noise quality), `--depth` (max bounce count), `--glitch <mode>`.
+glass noise quality), `--depth` (max bounce count), `--glitch <mode>`,
+`--animate <frames>` (turntable GIF instead of a still).
 
 ## Scene format
 
