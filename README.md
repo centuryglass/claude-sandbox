@@ -235,6 +235,90 @@ compound into something closer to bioluminescence than optics:
   <img src="gallery/depth_of_field_normal_drift.png" width="600" alt="The same scene under normal-drift: specular highlights bloom into soft organic blobs">
 </p>
 
+## Inside the geometry
+
+Every scene so far puts the camera outside a small handful of objects
+floating in open space. The glitch modes that corrupt a reflection *axis* or
+*hit point* - `hit-chain-drift`, `angular-fold`, `axis-swap-reflect` - only
+get to show off what they do to a ray at each bounce, and in open space most
+rays only bounce once or twice before escaping to the sky. Put the camera
+*inside* a large, irregular, enclosing mesh instead, surrounded by more
+reflective/refractive surfaces than it can see past, and every ray is forced
+into many more bounces before it can get away - exactly the regime these
+bugs are most visible in.
+
+Two new procedurally-generated meshes (same "don't trust hand-derived
+winding order" trick as `gen_crystal.rs`: compute each face's normal, flip
+it if it points the wrong way):
+
+- `examples/gen_geode.rs` → `assets/geode.obj`: an icosahedron subdivided
+  into a geodesic sphere, then nudged in and out by a handful of smooth
+  Gaussian radial bumps so it reads as an irregular cave rather than a
+  perfect sphere (1,280 triangles).
+- `examples/gen_spiral_horn.rs` → `assets/spiral_horn.obj`: a generalized
+  cylinder swept along a helical spine, flaring from a closed, tapered tip
+  to a wide open bell, with a star/gear-shaped fluted cross-section for
+  extra facets (777 triangles). The winding-safety trick gets generalized
+  here too - a spiral tube isn't star-shaped around one global center the
+  way a bipyramid is, so each face checks its normal against the nearest
+  point on the local spine instead of one fixed origin.
+
+Both are large enough, and open enough on the inside, for `scenes/
+geode_interior.ron` and `scenes/spiral_horn_interior.ron` to put the camera
+*inside* them, surrounded by a small cluster of Dielectric crystals and
+Metal mirror spheres.
+
+One dead end worth documenting: an early version of `geode_interior.ron`
+made the cave wall itself Metal, on the theory that "reflection/refraction
+should dominate the interior-facing surfaces." It rendered pure black. This
+renderer's `Metal` material has no direct-light term at all (only
+`Lambertian` samples the scene's point lights) - it only ever shows *reflected*
+light, so a fully-enclosed all-Metal shell has nothing to reflect and no way
+out to the sky. The fix, and the actual point of these scenes: the enclosing
+mesh is Lambertian and boldly textured (so it's genuinely lit, and so a
+glitch mode corrupting the hit point has something visibly different to land
+on at each point), while the Dielectric/Metal objects clustered around the
+camera do the reflecting.
+
+<p align="center">
+  <img src="gallery/geode_interior_reference.png" width="400" alt="Camera inside the geode cave shell, correctly rendered: checkered walls, a refracting crystal, a mirror sphere"><img src="gallery/geode_interior_hit_chain_drift.png" width="400" alt="Same view under hit-chain-drift: the crystal collapses into a jumbled dark mosaic of fragments">
+</p>
+
+`hit-chain-drift` (above right) is the standout: the crystal collapses into
+a jumbled, dark mosaic of tiny fragments, far busier than the same bug on
+the open-space showcase scene (compare the "textured" pair earlier in this
+README) - there's simply more nearby geometry for the shading point's
+chaotic walk to land on between light samples. `axis-swap-reflect` picks a
+different victim in the same scene - the mirror sphere, which the swapped
+reflection axis carves a sharp black crescent out of:
+
+<p align="center">
+  <img src="gallery/geode_interior_axis_swap_reflect.png" width="600" alt="Geode interior under axis-swap-reflect: the mirror sphere has a sharp black crescent where the permuted reflection axis sends rays into a dead end">
+</p>
+
+The spiral horn scene puts the camera deep in the throat instead, looking
+back out through the twisting, fluted walls - the same `hit-chain-drift` bug
+hitting a differently-shaped complex enclosure, for comparison:
+
+<p align="center">
+  <img src="gallery/spiral_horn_interior_reference.png" width="400" alt="Camera inside the spiral horn's throat, correctly rendered: fluted checkered walls curling around a refracting crystal"><img src="gallery/spiral_horn_interior_hit_chain_drift.png" width="400" alt="Same view under hit-chain-drift: the crystal again collapses into a dark fragmented mosaic">
+</p>
+
+Render either with:
+
+```sh
+cargo run --release -- scenes/geode_interior.ron --glitch hit-chain-drift -o renders/out.png
+cargo run --release -- scenes/spiral_horn_interior.ron --glitch axis-swap-reflect -o renders/out.png
+```
+
+Or regenerate the meshes themselves (parameters are positional CLI args, see
+each file's `main` for defaults):
+
+```sh
+cargo run --release --example gen_geode -- 3 assets/geode.obj
+cargo run --release --example gen_spiral_horn -- 7 56 assets/spiral_horn.obj
+```
+
 ## Usage
 
 ```sh
@@ -308,8 +392,9 @@ complete examples of each non-default kind.
 - `src/render.rs` - the shader: recursive ray-color evaluation, antialiasing, multithreading (rayon)
 - `src/glitch.rs` - the glitch gallery: every deliberate physical-inaccuracy mode, with rationale
 - `examples/gen_crystal.rs` - procedurally generates the faceted "gem" test meshes under `assets/`
+- `examples/gen_geode.rs`, `examples/gen_spiral_horn.rs` - procedurally generate the enclosing "cave" and "horn" meshes used by the camera-inside-the-geometry scenes
 - `scenes/*.ron` - example scene files
-- `assets/` - OBJ test meshes (procedural crystals, Stanford bunny)
+- `assets/` - OBJ test meshes (procedural crystals, geode, spiral horn, Stanford bunny)
 
 ## Tests
 
