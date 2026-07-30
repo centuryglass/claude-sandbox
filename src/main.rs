@@ -56,6 +56,13 @@ struct Cli {
     #[arg(long)]
     gallery: bool,
 
+    /// Instead of a shaded image, emit a geometry buffer (AOV) for use as a
+    /// raw ControlNet conditioning map: "depth" (MiDaS-style) or "normal"
+    /// (world-space normal map). Works for a single still, or per-frame with
+    /// --animate (which also dumps the frames to "<output>_frames/").
+    #[arg(long)]
+    aov: Option<render::Aov>,
+
     /// Render an orbiting turntable animation (this many frames, one full
     /// revolution around --look-at) to an animated GIF instead of a still.
     #[arg(long)]
@@ -368,7 +375,7 @@ fn main() -> anyhow::Result<()> {
     let settings = RenderSettings::new(cli.width, height, cli.samples, cli.depth).with_glitch(cli.glitch);
 
     if let Some(frames) = cli.animate {
-        return render_turntable(&scene_path, &settings, cli.aspect, frames, &cli.output);
+        return render_turntable(&scene_path, &settings, cli.aspect, frames, cli.aov, &cli.output);
     }
 
     let scene_desc = SceneDesc::load(&scene_path)?;
@@ -380,6 +387,14 @@ fn main() -> anyhow::Result<()> {
             let path = cli.output.join(format!("{}.png", mode.slug()));
             render_to(&scene, &settings.with_glitch(mode), path)?;
         }
+    } else if let Some(aov) = cli.aov {
+        let scene = scene_desc.build(cli.aspect)?;
+        if let Some(parent) = cli.output.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let img = render::render_aov(&scene, &settings, aov);
+        img.save(&cli.output)?;
+        println!("wrote {} ({:?} AOV)", cli.output.display(), aov);
     } else {
         let scene = scene_desc.build(cli.aspect)?;
         render_to(&scene, &settings, &cli.output)?;
@@ -394,7 +409,7 @@ fn main() -> anyhow::Result<()> {
 /// frame since `SceneDesc::build` consumes it (meshes get loaded into live
 /// `Box<dyn Hittable>`s, which aren't cheap to clone) and only the camera
 /// position changes frame to frame.
-fn render_turntable(scene_path: &std::path::Path, settings: &RenderSettings, aspect: f64, frames: u32, output: &std::path::Path) -> anyhow::Result<()> {
+fn render_turntable(scene_path: &std::path::Path, settings: &RenderSettings, aspect: f64, frames: u32, aov: Option<render::Aov>, output: &std::path::Path) -> anyhow::Result<()> {
     use image::codecs::gif::{GifEncoder, Repeat};
     use image::{Delay, Frame};
 
@@ -403,13 +418,29 @@ fn render_turntable(scene_path: &std::path::Path, settings: &RenderSettings, asp
         std::fs::create_dir_all(parent)?;
     }
 
+    // When emitting an AOV turntable, also drop the individual G-buffer frames
+    // into a "<output-stem>_frames/" directory so they can be post-processed
+    // one by one (e.g. fed through ControlNet) before being reassembled.
+    let frames_dir = aov.map(|_| output.with_extension("").with_file_name(
+        format!("{}_frames", output.file_stem().unwrap_or_default().to_string_lossy())));
+    if let Some(dir) = &frames_dir {
+        std::fs::create_dir_all(dir)?;
+    }
+
     let mut gif_frames = Vec::with_capacity(frames as usize);
     for i in 0..frames {
         let mut desc = SceneDesc::load(scene_path)?;
         desc.camera.look_from = orbit_position(desc.camera.look_from, desc.camera.look_at, i, frames);
 
         let scene = desc.build(aspect)?;
-        let img = render::render(&scene, settings);
+        let img = match aov {
+            Some(kind) => render::render_aov(&scene, settings, kind),
+            None => render::render(&scene, settings),
+        };
+        if let Some(dir) = &frames_dir {
+            let frame_path = dir.join(format!("frame_{i:03}.png"));
+            img.save(&frame_path)?;
+        }
         let rgba = image::DynamicImage::ImageRgb8(img).into_rgba8();
         gif_frames.push(Frame::from_parts(rgba, 0, 0, Delay::from_numer_denom_ms(1000 / 15, 1)));
         println!("rendered frame {}/{frames}", i + 1);

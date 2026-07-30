@@ -38,6 +38,100 @@ fn to_rgb8(c: Color) -> Rgb<u8> {
     Rgb([clamp(c.x), clamp(c.y), clamp(c.z)])
 }
 
+/// Auxiliary geometry buffers a ray tracer gets for free but a diffusion
+/// model would otherwise have to *estimate*. Emitting them lets ControlNet
+/// condition on the scene's true geometry (`module=none`) instead of a
+/// preprocessor's guess.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Aov {
+    /// Grayscale depth, MiDaS-style: nearest surface white, farthest black,
+    /// misses black. Pairs with `control_v11f1p_sd15_depth`.
+    Depth,
+    /// World-space surface normal, encoded `n*0.5 + 0.5` into RGB. Visible
+    /// surfaces already face the camera (the hit normal is flipped toward the
+    /// incoming ray), so this reads as a conventional normal map. Pairs with
+    /// `control_v11p_sd15_normalbae`.
+    Normal,
+}
+
+impl std::str::FromStr for Aov {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "depth" => Ok(Aov::Depth),
+            "normal" => Ok(Aov::Normal),
+            other => Err(format!("unknown AOV '{other}' (expected: depth, normal)")),
+        }
+    }
+}
+
+/// Renders a single-sample geometry buffer (see [`Aov`]) rather than a shaded
+/// image: one primary ray per pixel, first hit only, no lighting or bounces.
+/// Depth is normalized across the actual near/far hit range in the frame so
+/// the output always spans the full 0..255 range regardless of scene scale.
+pub fn render_aov(scene: &Scene, settings: &RenderSettings, aov: Aov) -> RgbImage {
+    let RenderSettings { width, height, .. } = *settings;
+
+    // First pass (parallel): shoot one center ray per pixel and record the
+    // first hit's distance and normal, or `None` for a background miss.
+    let mut hits: Vec<Option<(f64, Vec3)>> = vec![None; (width * height) as usize];
+    hits.par_chunks_mut(width as usize)
+        .enumerate()
+        .for_each(|(y, row)| {
+            let mut rng = rand::thread_rng();
+            for (x, cell) in row.iter_mut().enumerate() {
+                let s = (x as f64 + 0.5) / (width - 1) as f64;
+                let t = 1.0 - (y as f64 + 0.5) / (height - 1) as f64;
+                let ray = scene.camera.get_ray(s, t, &mut rng);
+                if let Some(rec) = scene.hit(&ray, SHADOW_EPS, f64::INFINITY) {
+                    *cell = Some((rec.t, rec.normal));
+                }
+            }
+        });
+
+    // Depth needs the frame's near/far extent to normalize against.
+    let (mut t_min, mut t_max) = (f64::INFINITY, f64::NEG_INFINITY);
+    for hit in hits.iter().flatten() {
+        t_min = t_min.min(hit.0);
+        t_max = t_max.max(hit.0);
+    }
+    let t_range = (t_max - t_min).max(1e-6);
+
+    // Second pass: encode each pixel per the requested buffer.
+    let mut buffer = vec![0u8; (width * height * 3) as usize];
+    buffer
+        .par_chunks_mut(3 * width as usize)
+        .enumerate()
+        .for_each(|(y, row)| {
+            for x in 0..width {
+                let cell = hits[(y * width as usize) + x as usize];
+                let rgb = match aov {
+                    Aov::Depth => match cell {
+                        // Nearest -> white, farthest -> black, miss -> black.
+                        Some((t, _)) => {
+                            let v = (1.0 - (t - t_min) / t_range).clamp(0.0, 1.0);
+                            let g = (v * 255.999) as u8;
+                            [g, g, g]
+                        }
+                        None => [0, 0, 0],
+                    },
+                    Aov::Normal => match cell {
+                        Some((_, n)) => {
+                            let enc = |c: f64| ((c * 0.5 + 0.5).clamp(0.0, 1.0) * 255.999) as u8;
+                            [enc(n.x), enc(n.y), enc(n.z)]
+                        }
+                        // Flat, camera-facing normal for the background.
+                        None => [128, 128, 255],
+                    },
+                };
+                let idx = (x * 3) as usize;
+                row[idx..idx + 3].copy_from_slice(&rgb);
+            }
+        });
+
+    ImageBuffer::from_raw(width, height, buffer).expect("buffer sized to width*height*3")
+}
+
 /// Renders the scene, one worker thread per row via rayon, and returns the
 /// finished image. Each row gets its own RNG so threads never contend.
 pub fn render(scene: &Scene, settings: &RenderSettings) -> RgbImage {
