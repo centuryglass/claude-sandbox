@@ -104,6 +104,17 @@ impl Vec3 {
     pub fn random_unit_vector(rng: &mut impl rand::Rng) -> Vec3 {
         Vec3::random_in_unit_sphere(rng).normalized()
     }
+
+    /// Uniformly-distributed point strictly inside the unit disk in the xy
+    /// plane (z = 0) - used for thin-lens depth-of-field sampling.
+    pub fn random_in_unit_disk(rng: &mut impl rand::Rng) -> Vec3 {
+        loop {
+            let p = Vec3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), 0.0);
+            if p.length_squared() < 1.0 {
+                return p;
+            }
+        }
+    }
 }
 
 impl Index<usize> for Vec3 {

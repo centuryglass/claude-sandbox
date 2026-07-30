@@ -68,6 +68,15 @@ pub struct CameraDesc {
     /// `Orthographic`.
     #[serde(default = "default_ortho_height")]
     pub height: f64,
+    /// Depth-of-field lens diameter. Only meaningful for `Perspective`.
+    /// Default 0 is a pinhole camera (infinite depth of field) - same as
+    /// every scene file written before this field existed.
+    #[serde(default)]
+    pub aperture: f64,
+    /// Distance from the camera to the plane that's in perfect focus. Only
+    /// meaningful for `Perspective` with a nonzero `aperture`.
+    #[serde(default = "one")]
+    pub focus_dist: f64,
 }
 
 fn default_vup() -> Vec3f {
@@ -178,7 +187,9 @@ impl SceneDesc {
 
         let (look_from, look_at, vup) = (v(self.camera.look_from), v(self.camera.look_at), v(self.camera.vup));
         let camera = match self.camera.kind {
-            CameraKind::Perspective => Camera::new(look_from, look_at, vup, self.camera.vfov, aspect_ratio),
+            CameraKind::Perspective => {
+                Camera::new_thin_lens(look_from, look_at, vup, self.camera.vfov, aspect_ratio, self.camera.aperture, self.camera.focus_dist)
+            }
             CameraKind::Orthographic => Camera::new_orthographic(look_from, look_at, vup, self.camera.height, aspect_ratio),
             CameraKind::Fisheye => Camera::new_fisheye(look_from, look_at, vup, self.camera.vfov, aspect_ratio),
             CameraKind::Stereographic => Camera::new_stereographic(look_from, look_at, vup, self.camera.vfov, aspect_ratio),

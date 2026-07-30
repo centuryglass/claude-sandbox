@@ -1,5 +1,6 @@
 use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
+use rand::Rng;
 
 /// A camera projection. Plain data enum with a `match` in [`Camera::get_ray`],
 /// same style as [`crate::material::Material`] and [`crate::texture::Texture`]
@@ -71,11 +72,23 @@ impl Camera {
         Camera::Equirectangular(EquirectangularCamera::new(look_from, look_at, vup))
     }
 
+    /// Thin-lens perspective camera: like `new`, but rays originate from a
+    /// random point on a lens disk of radius `aperture / 2` instead of a
+    /// single point, all still converging on the same plane at `focus_dist`
+    /// - the classic depth-of-field trick. `aperture = 0.0` is exactly
+    /// `new`'s pinhole camera (and, since multiplying by a zero-radius disk
+    /// offset is a no-op, produces byte-identical rays to it).
+    pub fn new_thin_lens(look_from: Point3, look_at: Point3, vup: Vec3, vfov: f64, aspect_ratio: f64, aperture: f64, focus_dist: f64) -> Self {
+        Camera::Perspective(PerspectiveCamera::new_thin_lens(look_from, look_at, vup, vfov, aspect_ratio, aperture, focus_dist))
+    }
+
     /// `s`, `t` are normalized viewport coordinates in [0, 1], with (0, 0) at
-    /// the bottom-left.
-    pub fn get_ray(&self, s: f64, t: f64) -> Ray {
+    /// the bottom-left. `rng` only matters for `Perspective` cameras with a
+    /// nonzero aperture (lens-position sampling for depth of field); every
+    /// other variant ignores it.
+    pub fn get_ray(&self, s: f64, t: f64, rng: &mut impl Rng) -> Ray {
         match self {
-            Camera::Perspective(c) => c.get_ray(s, t),
+            Camera::Perspective(c) => c.get_ray(s, t, rng),
             Camera::Orthographic(c) => c.get_ray(s, t),
             Camera::Fisheye(c) => c.get_ray(s, t),
             Camera::Stereographic(c) => c.get_ray(s, t),
@@ -111,10 +124,20 @@ pub struct PerspectiveCamera {
     lower_left: Point3,
     horizontal: Vec3,
     vertical: Vec3,
+    u: Vec3,
+    v: Vec3,
+    lens_radius: f64,
 }
 
 impl PerspectiveCamera {
     fn new(look_from: Point3, look_at: Point3, vup: Vec3, vfov: f64, aspect_ratio: f64) -> Self {
+        // aperture 0, focus_dist 1: multiplying every viewport term by
+        // focus_dist=1.0 is a bit-exact no-op, so this is byte-identical to
+        // the pre-depth-of-field formula.
+        PerspectiveCamera::new_thin_lens(look_from, look_at, vup, vfov, aspect_ratio, 0.0, 1.0)
+    }
+
+    fn new_thin_lens(look_from: Point3, look_at: Point3, vup: Vec3, vfov: f64, aspect_ratio: f64, aperture: f64, focus_dist: f64) -> Self {
         let theta = vfov.to_radians();
         let h = (theta / 2.0).tan();
         let viewport_height = 2.0 * h;
@@ -122,15 +145,17 @@ impl PerspectiveCamera {
 
         let basis = Basis::new(look_from, look_at, vup);
         let origin = basis.origin;
-        let horizontal = viewport_width * basis.u;
-        let vertical = viewport_height * basis.v;
-        let lower_left = origin - horizontal / 2.0 - vertical / 2.0 - basis.w;
+        let horizontal = focus_dist * viewport_width * basis.u;
+        let vertical = focus_dist * viewport_height * basis.v;
+        let lower_left = origin - horizontal / 2.0 - vertical / 2.0 - focus_dist * basis.w;
 
-        PerspectiveCamera { origin, lower_left, horizontal, vertical }
+        PerspectiveCamera { origin, lower_left, horizontal, vertical, u: basis.u, v: basis.v, lens_radius: aperture / 2.0 }
     }
 
-    fn get_ray(&self, s: f64, t: f64) -> Ray {
-        Ray::new(self.origin, self.lower_left + s * self.horizontal + t * self.vertical - self.origin)
+    fn get_ray(&self, s: f64, t: f64, rng: &mut impl Rng) -> Ray {
+        let lens = self.lens_radius * Vec3::random_in_unit_disk(rng);
+        let offset = self.u * lens.x + self.v * lens.y;
+        Ray::new(self.origin + offset, self.lower_left + s * self.horizontal + t * self.vertical - self.origin - offset)
     }
 }
 
@@ -308,7 +333,7 @@ mod tests {
         let expected = Ray::new(origin, lower_left + 0.3 * horizontal + 0.7 * vertical - origin);
 
         let cam = Camera::new(look_from, look_at, vup, vfov, aspect);
-        let actual = cam.get_ray(0.3, 0.7);
+        let actual = cam.get_ray(0.3, 0.7, &mut rand::thread_rng());
         assert_eq!(actual.origin, expected.origin);
         assert_eq!(actual.direction, expected.direction);
     }
@@ -318,15 +343,15 @@ mod tests {
         let look_from = Point3::new(0.0, 0.0, 5.0);
         let look_at = Point3::new(0.0, 0.0, 0.0);
         let cam = Camera::new(look_from, look_at, Vec3::new(0.0, 1.0, 0.0), 60.0, 1.0);
-        let ray = cam.get_ray(0.5, 0.5);
+        let ray = cam.get_ray(0.5, 0.5, &mut rand::thread_rng());
         assert_close(ray.direction.normalized(), (look_at - look_from).normalized(), 1e-9);
     }
 
     #[test]
     fn orthographic_rays_share_one_direction_but_fan_out_in_origin() {
         let cam = Camera::new_orthographic(Point3::new(0.0, 0.0, 5.0), Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), 2.0, 1.0);
-        let a = cam.get_ray(0.0, 0.0);
-        let b = cam.get_ray(1.0, 1.0);
+        let a = cam.get_ray(0.0, 0.0, &mut rand::thread_rng());
+        let b = cam.get_ray(1.0, 1.0, &mut rand::thread_rng());
         assert_close(a.direction, b.direction, 1e-9);
         assert!((a.origin - b.origin).length() > 1.0, "corner rays should originate far apart");
     }
@@ -337,7 +362,7 @@ mod tests {
         let look_at = Point3::new(0.0, 0.0, 0.0);
         let vup = Vec3::new(0.0, 1.0, 0.0);
         let cam = Camera::new_fisheye(look_from, look_at, vup, 180.0, 1.0);
-        let ray = cam.get_ray(0.5, 0.5);
+        let ray = cam.get_ray(0.5, 0.5, &mut rand::thread_rng());
         assert_close(ray.direction.normalized(), (look_at - look_from).normalized(), 1e-9);
     }
 
@@ -349,7 +374,7 @@ mod tests {
         let fov = 180.0_f64;
         let cam = Camera::new_fisheye(look_from, look_at, vup, fov, 1.0);
         let forward = (look_at - look_from).normalized();
-        let top = cam.get_ray(0.5, 1.0).direction.normalized();
+        let top = cam.get_ray(0.5, 1.0, &mut rand::thread_rng()).direction.normalized();
         let angle = top.dot(forward).clamp(-1.0, 1.0).acos();
         assert!((angle - (fov / 2.0).to_radians()).abs() < 1e-6);
     }
@@ -360,7 +385,7 @@ mod tests {
         let look_at = Point3::new(0.0, 0.0, 0.0);
         let vup = Vec3::new(0.0, 1.0, 0.0);
         let cam = Camera::new_stereographic(look_from, look_at, vup, 250.0, 1.0);
-        let ray = cam.get_ray(0.5, 0.5);
+        let ray = cam.get_ray(0.5, 0.5, &mut rand::thread_rng());
         assert_close(ray.direction.normalized(), (look_at - look_from).normalized(), 1e-9);
     }
 
@@ -370,7 +395,7 @@ mod tests {
         let look_at = Point3::new(1.0, 2.0, 0.0);
         let vup = Vec3::new(0.0, 1.0, 0.0);
         let cam = Camera::new_equirectangular(look_from, look_at, vup);
-        let ray = cam.get_ray(0.5, 0.5);
+        let ray = cam.get_ray(0.5, 0.5, &mut rand::thread_rng());
         assert_close(ray.direction.normalized(), (look_at - look_from).normalized(), 1e-9);
     }
 
@@ -380,9 +405,52 @@ mod tests {
         for i in 0..=10 {
             for j in 0..=10 {
                 let (s, t) = (i as f64 / 10.0, j as f64 / 10.0);
-                let dir = cam.get_ray(s, t).direction;
+                let dir = cam.get_ray(s, t, &mut rand::thread_rng()).direction;
                 assert!((dir.length() - 1.0).abs() < 1e-9, "s={s} t={t} len={}", dir.length());
             }
+        }
+    }
+
+    #[test]
+    fn zero_aperture_thin_lens_matches_pinhole() {
+        let (look_from, look_at, vup) = (Point3::new(0.0, 0.8, 2.5), Point3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.0, 0.0));
+        let pinhole = Camera::new(look_from, look_at, vup, 45.0, 16.0 / 9.0);
+        let thin_lens = Camera::new_thin_lens(look_from, look_at, vup, 45.0, 16.0 / 9.0, 0.0, 1.0);
+        // Aperture 0 => lens_radius 0 => the disk offset is always exactly
+        // zero, whatever the RNG draws - so this must hold for any seed.
+        for _ in 0..20 {
+            let a = pinhole.get_ray(0.37, 0.62, &mut rand::thread_rng());
+            let b = thin_lens.get_ray(0.37, 0.62, &mut rand::thread_rng());
+            assert_eq!(a.origin, b.origin);
+            assert_eq!(a.direction, b.direction);
+        }
+    }
+
+    #[test]
+    fn nonzero_aperture_scatters_ray_origins_but_keeps_focus_point() {
+        let (look_from, look_at, vup) = (Point3::new(0.0, 0.0, 5.0), Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let focus_dist = 5.0;
+        let cam = Camera::new_thin_lens(look_from, look_at, vup, 40.0, 1.0, 0.5, focus_dist);
+        let mut rng = rand::thread_rng();
+
+        let mut origins_differ = false;
+        let mut focus_points = Vec::new();
+        for _ in 0..50 {
+            let ray = cam.get_ray(0.5, 0.5, &mut rng);
+            if (ray.origin - look_from).length() > 1e-9 {
+                origins_differ = true;
+            }
+            // All rays through the same (s, t) should converge back to the
+            // same point on the focus plane, regardless of lens offset.
+            // Convergence happens at ray parameter 1, not `focus_dist`
+            // itself - horizontal/vertical/lower_left are already scaled by
+            // focus_dist when the camera is built, so `direction` reaches
+            // the focus plane after traveling its own full length once.
+            focus_points.push(ray.at(1.0));
+        }
+        assert!(origins_differ, "nonzero aperture should jitter ray origins across samples");
+        for p in &focus_points[1..] {
+            assert_close(*p, focus_points[0], 1e-6);
         }
     }
 }

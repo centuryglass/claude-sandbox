@@ -216,6 +216,25 @@ whatever the glitch is already doing to shape:
 |---|---|
 | ![orthographic axis-swap-reflect](gallery/orthographic_axis_swap.png) `Orthographic` + `axis-swap-reflect` — parallel rays, no convergence, paired with the cyclic-component-permutation reflection bug: the mirror sphere goes flat black split by a hard color edge instead of the usual mottled faceting. | ![equirectangular hit-chain-drift](gallery/equirect_hit_chain_drift.png) `Equirectangular` + `hit-chain-drift` — the discarded-reflection walk reads as uniformly flat and dark across the whole panorama; without a patterned texture to reveal the walk (contrast with "The real bug" above), every reflective/refractive surface just goes matte. |
 
+### Depth of field
+
+`Perspective` cameras can take `aperture`/`focus_dist`: a thin-lens model
+where rays originate from a random point on a lens disk instead of a single
+point, all still converging on the same plane at `focus_dist` (`aperture: 0`
+- the default - is an exact pinhole, byte-identical to every scene written
+before this existed). Standard bokeh:
+
+<p align="center">
+  <img src="gallery/depth_of_field.png" width="600" alt="Row of mirror spheres with the middle one in sharp focus and the rest progressively blurred">
+</p>
+
+Paired with `normal-drift`, the blur and the corrupted specular highlights
+compound into something closer to bioluminescence than optics:
+
+<p align="center">
+  <img src="gallery/depth_of_field_normal_drift.png" width="600" alt="The same scene under normal-drift: specular highlights bloom into soft organic blobs">
+</p>
+
 ## Usage
 
 ```sh

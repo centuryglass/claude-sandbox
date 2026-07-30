@@ -1,0 +1,25 @@
+// A row of spheres at increasing distance, camera focused on the middle
+// one with a wide aperture - classic depth-of-field/bokeh demonstration.
+// Render with: cargo run --release -- scenes/depth_of_field.ron -s 256
+(
+    camera: (
+        look_from: (0.0, 0.6, 3.0),
+        look_at: (0.0, 0.2, -1.0),
+        vfov: 35.0,
+        aperture: 0.4,
+        focus_dist: 3.03,
+    ),
+    sky_bottom: (1.0, 1.0, 1.0),
+    sky_top: (0.5, 0.7, 1.0),
+    lights: [
+        Point(position: (-3.0, 5.0, 3.0), color: (1.0, 1.0, 1.0), intensity: 40.0),
+    ],
+    objects: [
+        Sphere(center: (0.0, -100.5, -1.0), radius: 100.0, material: Lambertian(albedo: Checker(a: (0.6, 0.6, 0.65), b: (0.85, 0.85, 0.9), scale: 3.0))),
+        Sphere(center: (-1.6, 0.0, 1.6), radius: 0.35, material: Metal(albedo: Solid((0.9, 0.3, 0.3)), fuzz: 0.0)),
+        Sphere(center: (-0.8, 0.1, 0.8), radius: 0.3, material: Metal(albedo: Solid((0.9, 0.7, 0.2)), fuzz: 0.0)),
+        Sphere(center: (0.0, 0.2, 0.0), radius: 0.35, material: Metal(albedo: Solid((0.3, 0.85, 0.4)), fuzz: 0.0)),
+        Sphere(center: (0.85, 0.15, -0.8), radius: 0.3, material: Metal(albedo: Solid((0.3, 0.6, 0.9)), fuzz: 0.0)),
+        Sphere(center: (1.7, 0.05, -1.6), radius: 0.35, material: Metal(albedo: Solid((0.7, 0.35, 0.9)), fuzz: 0.0)),
+    ],
+)

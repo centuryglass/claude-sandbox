@@ -54,7 +54,7 @@ pub fn render(scene: &Scene, settings: &RenderSettings) -> RgbImage {
                 for _ in 0..samples_per_pixel {
                     let s = (x as f64 + rng.gen_range(0.0..1.0)) / (width - 1) as f64;
                     let t = 1.0 - (y as f64 + rng.gen_range(0.0..1.0)) / (height - 1) as f64;
-                    let ray = scene.camera.get_ray(s, t);
+                    let ray = scene.camera.get_ray(s, t, &mut rng);
                     color += match glitch {
                         GlitchMode::HitChainDrift => hit_chain_drift_color(&ray, scene, &mut rng),
                         GlitchMode::CoinFlipMiss => coin_flip_miss_entry(&ray, scene, max_depth, &mut rng),
