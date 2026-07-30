@@ -1,0 +1,51 @@
+// The capstone: every major feature from this session in one scene.
+// - environment: the hand-rolled procedural nebula (see "Environment lighting")
+// - a Rect area light casting real soft shadows on the ground (see "Area
+//   lights and soft shadows")
+// - a Dielectric crystal shell wrapped around an Emissive glowing core
+//   (see "Emissive materials")
+// - a Metal sphere textured with a real photo (see "Textures") that's
+//   *also* reflecting the nebula environment around it (see "Environment
+//   lighting" again - the two features compositing on the same surface)
+// - a procedurally UV-mapped mesh (the spiral horn) wearing that same
+//   photo, showing its own distinct cylindrical-UV wrap
+// - a touch of depth-of-field on the wide aperture
+// Render honestly with: cargo run --release -- scenes/capstone.ron -s 400
+// Or through a glitch mode - everything above is reflection/refraction-
+// direction-based, so all of it distorts together:
+//   cargo run --release -- scenes/capstone.ron -s 400 --glitch hit-chain-drift
+(
+    camera: (
+        look_from: (0.0, 1.05, 3.1),
+        look_at: (0.0, 0.15, -1.0),
+        vfov: 42.0,
+        aperture: 0.05,
+        focus_dist: 3.6,
+    ),
+    ambient: (0.02, 0.02, 0.035),
+    environment: Some(Image("assets/textures/nebula.png")),
+    lights: [
+        // Faces down (u_axis x v_axis = (0,-2.5,0)): the main soft-shadow source.
+        Rect(center: (-1.8, 3.2, 0.6), u_axis: (1.6, 0.0, 0.0), v_axis: (0.0, 0.0, 1.6), color: (1.0, 0.95, 0.88), intensity: 60.0),
+        // Dim cool fill so the shadow side isn't pure black.
+        Point(position: (2.5, 1.2, 2.0), color: (0.5, 0.6, 1.0), intensity: 5.0),
+    ],
+    objects: [
+        Sphere(center: (0.0, -100.5, -1.0), radius: 100.0, material: Lambertian(albedo: Checker(a: (0.14, 0.11, 0.16), b: (0.24, 0.19, 0.27), scale: 3.0))),
+
+        // Glowing core sealed inside a glass crystal shell.
+        Sphere(center: (0.0, 0.2, -1.1), radius: 0.2, material: Emissive(color: Noise(color: (1.0, 0.4, 0.15), scale: 6.0, octaves: 3), intensity: 3.0)),
+        Mesh(path: "assets/crystal_dense.obj", material: Dielectric(ior: 1.7), scale: 1.05, translate: (0.0, 0.2, -1.1)),
+
+        // Metal earth: an image texture AND an environment reflection on
+        // the same surface at once.
+        Sphere(center: (1.15, -0.05, -0.4), radius: 0.42, material: Metal(albedo: Image("assets/textures/earth.jpg"), fuzz: 0.0)),
+
+        // Small plain mirror for a third reflective read of the nebula.
+        Sphere(center: (0.35, -0.42, 0.35), radius: 0.15, material: Metal(albedo: Solid((0.92, 0.92, 0.95)), fuzz: 0.0)),
+
+        // Procedurally UV-mapped mesh wearing the same earth photo, its own
+        // cylindrical wrap visibly different from the sphere's spherical one.
+        Mesh(path: "assets/spiral_horn.obj", material: Lambertian(albedo: Image("assets/textures/earth.jpg")), scale: 0.25, translate: (-1.15, -0.15, -0.15)),
+    ],
+)

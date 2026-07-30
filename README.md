@@ -17,7 +17,7 @@ looking for: [glitch gallery](#the-glitch-gallery) ·
 [emissive materials](#emissive-materials) ·
 [camera projections](#camera-projections) ·
 [depth of field](#depth-of-field) ·
-[inside the geometry](#inside-the-geometry) ·
+[inside the geometry](#inside-the-geometry) · [capstone](#capstone) ·
 [scene format](#scene-format) · [project layout](#project-layout).
 
 <p align="center">
@@ -456,6 +456,35 @@ each file's `main` for defaults):
 cargo run --release --example gen_geode -- 3 assets/geode.obj
 cargo run --release --example gen_spiral_horn -- 7 56 assets/spiral_horn.obj
 ```
+
+## Capstone
+
+`scenes/capstone.ron` puts (almost) everything above in one frame: the
+procedural nebula environment map, a `Rect` area light casting a real soft
+shadow, an `Emissive` glowing core sealed inside a `Dielectric` crystal
+shell, a `Metal` sphere wearing a real photo *and* reflecting the nebula
+around it at the same time, the procedurally-generated spiral horn wearing
+that same photo along its own distinct UV wrap, and a touch of
+depth-of-field:
+
+<p align="center">
+  <img src="gallery/capstone.png" width="700" alt="Capstone scene: a glowing crystal, a photo-textured metal sphere reflecting a procedural nebula environment, a mirror sphere, and a UV-mapped spiral horn, all on a checkered floor with a soft area-light shadow">
+</p>
+
+Every one of those features works by shading a ray hit or bending a
+reflection/refraction direction, so a glitch mode reaches all of them at
+once. `axis-swap-reflect` again:
+
+<p align="center">
+  <img src="gallery/capstone_axis_swap_reflect.png" width="700" alt="The same capstone scene through axis-swap-reflect: the crystal turns matte white with a folded orange glow patch, and both mirror spheres show hard-edged black crescents">
+</p>
+
+And turned into a turntable, camera orbiting once around the whole
+composition:
+
+<p align="center">
+  <img src="gallery/capstone_turntable.gif" width="600" alt="Turntable animation of the capstone scene, camera orbiting once around the composition">
+</p>
 
 ## Usage
 
