@@ -1,0 +1,25 @@
+// A glowing core sealed inside a glass crystal shell, reflected by nearby
+// mirror spheres. Emissive materials only radiate their own color directly
+// to the camera/reflections (this renderer has no full global illumination,
+// so they don't cast light onto *other* surfaces the way a Light does) -
+// but seen through glass and mirrors, that's plenty.
+(
+    camera: (
+        look_from: (0.0, 0.7, 2.3),
+        look_at: (0.0, 0.1, -1.0),
+        vfov: 40.0,
+    ),
+    ambient: (0.02, 0.02, 0.03),
+    sky_bottom: (0.02, 0.02, 0.04),
+    sky_top: (0.05, 0.03, 0.1),
+    lights: [
+        Point(position: (2.0, 3.0, 2.0), color: (0.4, 0.5, 0.7), intensity: 6.0),
+    ],
+    objects: [
+        Sphere(center: (0.0, -100.5, -1.0), radius: 100.0, material: Lambertian(albedo: Solid((0.08, 0.08, 0.1)))),
+        Sphere(center: (0.0, 0.1, -1.0), radius: 0.22, material: Emissive(color: Noise(color: (1.0, 0.35, 0.05), scale: 6.0, octaves: 3), intensity: 3.0)),
+        Mesh(path: "assets/crystal_dense.obj", material: Dielectric(ior: 1.6), scale: 1.0, translate: (0.0, 0.1, -1.0)),
+        Sphere(center: (1.1, 0.0, -0.7), radius: 0.4, material: Metal(albedo: Solid((0.9, 0.9, 0.92)), fuzz: 0.0)),
+        Sphere(center: (-1.1, -0.05, -0.6), radius: 0.35, material: Metal(albedo: Solid((0.9, 0.9, 0.92)), fuzz: 0.02)),
+    ],
+)

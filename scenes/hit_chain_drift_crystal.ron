@@ -1,0 +1,22 @@
+// Same bug, with the faceted crystals back in the mix alongside bold
+// textures, for the closest analog to the original amethyst reference.
+(
+    camera: (
+        look_from: (0.0, 0.95, 2.5),
+        look_at: (0.0, 0.1, -1.0),
+        vfov: 42.0,
+    ),
+    ambient: (0.05, 0.05, 0.05),
+    sky_bottom: (1.0, 0.85, 0.1),
+    sky_top: (0.85, 0.15, 0.55),
+    lights: [
+        Point(position: (-2.0, 3.5, 2.5), color: (1.0, 1.0, 1.0), intensity: 150.0),
+    ],
+    objects: [
+        Sphere(center: (0.0, -100.5, -1.0), radius: 100.0, material: Lambertian(albedo: Checker(a: (0.9, 0.15, 0.5), b: (0.1, 0.8, 0.85), scale: 2.0))),
+        Sphere(center: (0.95, -0.1, -0.55), radius: 0.45, material: Metal(albedo: Checker(a: (1.0, 0.9, 0.1), b: (0.1, 0.1, 0.9), scale: 6.0), fuzz: 0.0)),
+        Sphere(center: (0.15, -0.35, -0.15), radius: 0.15, material: Metal(albedo: Noise(color: (1.0, 0.5, 0.1), scale: 5.0, octaves: 4), fuzz: 0.05)),
+        Mesh(path: "assets/crystal_dense.obj", material: Dielectric(ior: 1.8), scale: 1.15, translate: (0.0, 0.15, -1.3)),
+        Mesh(path: "assets/crystal_dense.obj", material: Dielectric(ior: 1.8), scale: 0.5, translate: (-0.85, -0.35, -0.7)),
+    ],
+)

@@ -1,0 +1,24 @@
+// A rectangular area light (Light::Rect) casting a soft-edged shadow -
+// compare against area_light_hard_shadow.ron, the identical scene lit by a
+// Point light instead, for the difference a finite light source makes.
+// Needs a reasonably high --samples to resolve the penumbra without noise
+// (the default 256 is enough; the gallery image below used 512).
+// Render with: cargo run --release -- scenes/area_light_soft_shadow.ron
+(
+    camera: (
+        look_from: (0.0, 1.2, 3.0),
+        look_at: (0.0, 0.1, -1.0),
+        vfov: 40.0,
+    ),
+    ambient: (0.03, 0.03, 0.04),
+    sky_bottom: (0.15, 0.15, 0.2),
+    sky_top: (0.05, 0.05, 0.1),
+    lights: [
+        // u_axis.cross(v_axis) = (0, -2.25, 0): faces straight down.
+        Rect(center: (-1.6, 3.0, 0.2), u_axis: (1.5, 0.0, 0.0), v_axis: (0.0, 0.0, 1.5), color: (1.0, 0.97, 0.9), intensity: 55.0),
+    ],
+    objects: [
+        Sphere(center: (0.0, -100.5, -1.0), radius: 100.0, material: Lambertian(albedo: Checker(a: (0.6, 0.6, 0.65), b: (0.35, 0.35, 0.4), scale: 3.0))),
+        Sphere(center: (0.0, 0.65, -1.0), radius: 0.5, material: Lambertian(albedo: Solid((0.75, 0.2, 0.25)))),
+    ],
+)

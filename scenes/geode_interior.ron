@@ -1,0 +1,32 @@
+// Camera embedded inside the geodesic "geode" cave shell (examples/gen_geode.rs),
+// surrounded by a small cluster of crystals and mirror spheres. The cave wall
+// itself has to be Lambertian - this renderer's Metal material carries no
+// direct-light term at all, so an all-Metal enclosed shell would render pure
+// black with nothing to reflect. So: a lit, high-contrast checkered cave all
+// around, with Dielectric/Metal objects near the camera doing the actual
+// reflecting/refracting. See README's "Inside the geometry" section.
+// Render: cargo run --release -- scenes/geode_interior.ron -o renders/out.png
+// Or with a glitch mode: --glitch hit-chain-drift / angular-fold / axis-swap-reflect
+(
+    camera: (
+        look_from: (0.2, 0.5, -0.5),
+        look_at: (-0.4, 0.1, -2.2),
+        vfov: 75.0,
+    ),
+    ambient: (0.06, 0.06, 0.06),
+    sky_bottom: (1.0, 0.85, 0.1),
+    sky_top: (0.85, 0.15, 0.55),
+    lights: [
+        Point(position: (0.6, 2.0, -0.6), color: (1.0, 1.0, 1.0), intensity: 10.0),
+        Point(position: (-1.4, 0.6, -3.0), color: (1.0, 0.65, 0.3), intensity: 7.0),
+        Point(position: (1.4, -0.4, -2.2), color: (0.4, 0.6, 1.0), intensity: 6.0),
+    ],
+    objects: [
+        Mesh(path: "assets/geode.obj", material: Lambertian(albedo: Checker(a: (0.55, 0.15, 0.5), b: (0.15, 0.55, 0.55), scale: 3.0)), scale: 3.8, translate: (0.0, 0.3, -1.2)),
+        Mesh(path: "assets/crystal_dense.obj", material: Dielectric(ior: 1.6), scale: 0.4, translate: (-0.3, 0.25, -1.4)),
+        Mesh(path: "assets/crystal_dense.obj", material: Dielectric(ior: 1.8), scale: 0.26, translate: (0.3, -0.05, -1.05)),
+        Mesh(path: "assets/crystal.obj", material: Dielectric(ior: 1.5), scale: 0.22, translate: (-0.05, -0.2, -0.75)),
+        Sphere(center: (0.4, 0.5, -1.6), radius: 0.16, material: Metal(albedo: Solid((0.95, 0.85, 0.5)), fuzz: 0.02)),
+        Sphere(center: (-0.55, -0.05, -1.65), radius: 0.13, material: Metal(albedo: Solid((0.9, 0.9, 0.95)), fuzz: 0.0)),
+    ],
+)

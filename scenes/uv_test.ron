@@ -1,0 +1,21 @@
+// Quick verification scene for procedural-mesh UV mapping: the earth
+// texture on a crystal, a geode fragment, and a sphere for comparison.
+(
+    camera: (
+        look_from: (0.0, 1.0, 3.2),
+        look_at: (0.0, 0.1, -0.5),
+        vfov: 45.0,
+    ),
+    ambient: (0.1, 0.1, 0.1),
+    sky_bottom: (0.1, 0.1, 0.15),
+    sky_top: (0.2, 0.2, 0.35),
+    lights: [
+        Point(position: (-3.0, 4.0, 2.5), color: (1.0, 1.0, 1.0), intensity: 35.0),
+    ],
+    objects: [
+        Sphere(center: (0.0, -100.5, -1.0), radius: 100.0, material: Lambertian(albedo: Solid((0.3, 0.3, 0.35)))),
+        Sphere(center: (-1.3, 0.0, -0.5), radius: 0.7, material: Lambertian(albedo: Image("assets/textures/earth.jpg"))),
+        Mesh(path: "assets/crystal_dense.obj", material: Lambertian(albedo: Image("assets/textures/earth.jpg")), scale: 0.9, translate: (0.6, 0.0, -0.5)),
+        Mesh(path: "assets/geode.obj", material: Lambertian(albedo: Image("assets/textures/earth.jpg")), scale: 0.5, translate: (2.0, 0.0, -1.2)),
+    ],
+)

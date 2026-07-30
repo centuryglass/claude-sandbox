@@ -1,0 +1,22 @@
+// The actual photo that started this whole project (the human's original
+// 2013 kaleidoscope-bug render), mapped as an image texture onto a sphere
+// next to our own from-scratch procedural crystal - the reference image
+// and its reverse-engineered reproduction side by side, literally.
+(
+    camera: (
+        look_from: (0.0, 0.6, 3.4),
+        look_at: (0.0, 0.1, -0.5),
+        vfov: 42.0,
+    ),
+    ambient: (0.08, 0.08, 0.08),
+    sky_bottom: (1.0, 0.85, 0.1),
+    sky_top: (0.85, 0.15, 0.55),
+    lights: [
+        Point(position: (-3.0, 4.0, 2.5), color: (1.0, 1.0, 1.0), intensity: 35.0),
+    ],
+    objects: [
+        Sphere(center: (0.0, -100.5, -1.0), radius: 100.0, material: Lambertian(albedo: Solid((0.5, 0.5, 0.55)))),
+        Sphere(center: (-0.9, 0.15, -0.6), radius: 0.85, material: Lambertian(albedo: Image("assets/textures/amethyst_reference.png"))),
+        Mesh(path: "assets/crystal_dense.obj", material: Dielectric(ior: 1.8), scale: 1.0, translate: (0.9, 0.0, -0.3)),
+    ],
+)
