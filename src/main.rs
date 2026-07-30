@@ -9,6 +9,7 @@ use lumin::render::{self, RenderSettings};
 use lumin::scene::Scene;
 use lumin::scene_desc::SceneDesc;
 use lumin::sphere::Sphere;
+use lumin::texture::Texture;
 use lumin::triangle::Triangle;
 use lumin::vec3::{Color, Point3, Vec3};
 use std::path::PathBuf;
@@ -70,19 +71,19 @@ fn reflection_scene(aspect_ratio: f64) -> Scene {
         Box::new(Sphere::new(
             Point3::new(0.0, -100.5, -1.0),
             100.0,
-            Material::Lambertian { albedo: Color::new(0.6, 0.6, 0.65) },
+            Material::Lambertian { albedo: Texture::Solid(Color::new(0.6, 0.6, 0.65)) },
         )),
         // Diffuse sphere on the left.
         Box::new(Sphere::new(
             Point3::new(-1.1, 0.0, -1.4),
             0.5,
-            Material::Lambertian { albedo: Color::new(0.2, 0.6, 0.3) },
+            Material::Lambertian { albedo: Texture::Solid(Color::new(0.2, 0.6, 0.3)) },
         )),
         // Polished metal sphere in the middle.
         Box::new(Sphere::new(
             Point3::new(0.0, 0.0, -1.2),
             0.5,
-            Material::Metal { albedo: Color::new(0.85, 0.85, 0.9), fuzz: 0.02 },
+            Material::Metal { albedo: Texture::Solid(Color::new(0.85, 0.85, 0.9)), fuzz: 0.02 },
         )),
         // Glass sphere on the right (solid, so it also reflects a bit via Fresnel).
         Box::new(Sphere::new(
@@ -94,7 +95,7 @@ fn reflection_scene(aspect_ratio: f64) -> Scene {
         Box::new(Sphere::new(
             Point3::new(0.15, -0.3, -0.55),
             0.2,
-            Material::Metal { albedo: Color::new(0.9, 0.7, 0.3), fuzz: 0.15 },
+            Material::Metal { albedo: Texture::Solid(Color::new(0.9, 0.7, 0.3)), fuzz: 0.15 },
         )),
     ];
 
@@ -126,17 +127,17 @@ fn crystal_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
         Box::new(Sphere::new(
             Point3::new(0.0, -100.5, -1.0),
             100.0,
-            Material::Lambertian { albedo: Color::new(0.55, 0.55, 0.6) },
+            Material::Lambertian { albedo: Texture::Solid(Color::new(0.55, 0.55, 0.6)) },
         )),
         Box::new(Sphere::new(
             Point3::new(0.9, -0.15, -0.5),
             0.35,
-            Material::Metal { albedo: Color::new(0.9, 0.75, 0.4), fuzz: 0.05 },
+            Material::Metal { albedo: Texture::Solid(Color::new(0.9, 0.75, 0.4)), fuzz: 0.05 },
         )),
         Box::new(Sphere::new(
             Point3::new(-0.9, -0.2, -0.6),
             0.3,
-            Material::Lambertian { albedo: Color::new(0.7, 0.2, 0.5) },
+            Material::Lambertian { albedo: Texture::Solid(Color::new(0.7, 0.2, 0.5)) },
         )),
         crystal,
     ];
@@ -183,19 +184,19 @@ fn glitch_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
         Box::new(Sphere::new(
             Point3::new(0.0, -100.5, -1.0),
             100.0,
-            Material::Lambertian { albedo: Color::new(0.5, 0.5, 0.55) },
+            Material::Lambertian { albedo: Texture::Solid(Color::new(0.5, 0.5, 0.55)) },
         )),
         // Mirror sphere close to the crystals, so reflected/refracted rays
         // ping-pong between it and the facets for several bounces.
         Box::new(Sphere::new(
             Point3::new(0.95, -0.1, -0.55),
             0.45,
-            Material::Metal { albedo: Color::new(0.92, 0.92, 0.95), fuzz: 0.0 },
+            Material::Metal { albedo: Texture::Solid(Color::new(0.92, 0.92, 0.95)), fuzz: 0.0 },
         )),
         Box::new(Sphere::new(
             Point3::new(0.15, -0.35, -0.15),
             0.15,
-            Material::Metal { albedo: Color::new(0.9, 0.75, 0.35), fuzz: 0.05 },
+            Material::Metal { albedo: Texture::Solid(Color::new(0.9, 0.75, 0.35)), fuzz: 0.05 },
         )),
         big_crystal,
         small_crystal,
@@ -246,7 +247,7 @@ fn hall_of_mirrors_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
         Point3::new(0.0, 0.0, -1.4),
     )?;
 
-    let mirror = Material::Metal { albedo: Color::new(0.95, 0.95, 0.97), fuzz: 0.0 };
+    let mirror = Material::Metal { albedo: Texture::Solid(Color::new(0.95, 0.95, 0.97)), fuzz: 0.0 };
     let (y0, y1) = (-0.5, 2.2);
     let (z_near, z_far) = (1.5, -6.0);
     let mut objects: Vec<Box<dyn Hittable>> = Vec::new();
@@ -272,12 +273,12 @@ fn hall_of_mirrors_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
     objects.push(Box::new(Sphere::new(
         Point3::new(0.0, -100.5, -1.0),
         100.0,
-        Material::Lambertian { albedo: Color::new(0.5, 0.5, 0.55) },
+        Material::Lambertian { albedo: Texture::Solid(Color::new(0.5, 0.5, 0.55)) },
     )));
     objects.push(Box::new(Sphere::new(
         Point3::new(0.9, -0.15, -0.4),
         0.35,
-        Material::Metal { albedo: Color::new(0.9, 0.75, 0.35), fuzz: 0.05 },
+        Material::Metal { albedo: Texture::Solid(Color::new(0.9, 0.75, 0.35)), fuzz: 0.05 },
     )));
     objects.push(crystal);
 

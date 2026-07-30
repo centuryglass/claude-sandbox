@@ -21,11 +21,43 @@ of light. This project chases that effect (and others like it) by
 implementing a handful of plausible one-line shader bugs as selectable
 render modes — see `src/glitch.rs` for the full writeup of each one.
 
-The closest match turned out to be the most literal reading of
-"kaleidoscope": `angular-fold` mirrors the reflected/refracted direction's
-azimuthal angle into repeating wedges around the vertical axis — the actual
-optical principle behind a toy kaleidoscope's ring of mirrors, just applied
-to a ray direction instead of light in a tube:
+### The real bug
+
+The original C++ source turned up. The actual bug (`hit-chain-drift`,
+`src/render.rs`) is a **variable-shadowing + shared-mutable-state** bug, not
+a broken formula: a locally-declared `Vector3D rCol;` inside the
+mirror-reflection branch shadows the outer accumulator of the same name, so
+the recursively-computed "real" reflection color is thrown away every time.
+But the hit-record used to compute that reflection is a mutable reference
+that gets updated in place regardless of the discard - so the only surviving
+effect of "reflecting" is that the shading point silently drifts to wherever
+the reflected ray landed, across every remaining iteration of an inner
+per-light sample loop, across lights, and across nested recursive calls (all
+sharing one mutable hit-record and one bounce budget that only ever
+decreases, never resets). The final pixel color ends up being local diffuse
+lighting sampled at a chaotic, order-dependent *walk* across the scene's
+geometry - not reflection at all. Textured objects make it obvious:
+
+<p align="center">
+  <img src="gallery/textured_reference.png" width="400" alt="Correctly rendered textured spheres"><img src="gallery/hit_chain_drift_textured.png" width="400" alt="Same scene under hit-chain-drift: reflections replaced by flat waxy patches and jumbled cross-object texture fragments">
+</p>
+
+Reflective regions go flat and waxy (no real reflection color ever
+substitutes for the diffuse term there), while other regions show jumbled
+fragments of textures from *other objects entirely*, wherever the walk
+happened to wander:
+
+<p align="center">
+  <img src="gallery/hit_chain_drift_crystal.png" width="600" alt="Faceted crystals and a mirror sphere under hit-chain-drift">
+</p>
+
+### Other explorations
+
+The most literal reading of "kaleidoscope" turned out to be a good creative
+detour even once the real bug was known: `angular-fold` mirrors the
+reflected/refracted direction's azimuthal angle into repeating wedges around
+the vertical axis — the actual optical principle behind a toy kaleidoscope's
+ring of mirrors, just applied to a ray direction instead of light in a tube:
 
 <p align="center">
   <img src="gallery/angular_fold_spheres.png" width="400"><img src="gallery/angular_fold.png" width="400">
@@ -41,6 +73,16 @@ A few of the other deliberately-wrong reflection axes/formulas:
 Other modes (`kaleidoscope-stale-direction`, `kaleidoscope-stale-normal`,
 `flipped-reflect-sign`, `inverted-fresnel`, `energy-bleed`) are documented in
 `src/glitch.rs` alongside the specific bug each one simulates.
+
+### Textures
+
+Materials can carry a procedural, world-space `Texture` instead of a flat
+color: `Solid`, `Checker`, `Stripes`, `Gradient`, and `Noise` (hand-rolled
+fractal value noise, no crate). World-space rather than UV-mapped, so it
+works uniformly across spheres and arbitrary meshes with zero extra
+plumbing - and it's what makes `hit-chain-drift`'s chaotic walk visible at
+all, since a solid-colored object can't show you that its sampled point
+silently moved.
 
 It even holds up on a real mesh - the Stanford bunny (69,451 triangles)
 under `normal-drift`:
@@ -90,18 +132,22 @@ definition. Shape:
         Point(position: (-4.0, 5.0, 2.0), color: (1.0, 1.0, 1.0), intensity: 40.0),
     ],
     objects: [
-        Sphere(center: (0.0, -100.5, -1.0), radius: 100.0, material: Lambertian(albedo: (0.6, 0.6, 0.65))),
-        Sphere(center: (0.0, 0.0, -1.2), radius: 0.5, material: Metal(albedo: (0.85, 0.85, 0.9), fuzz: 0.02)),
+        Sphere(center: (0.0, -100.5, -1.0), radius: 100.0, material: Lambertian(albedo: Solid((0.6, 0.6, 0.65)))),
+        Sphere(center: (0.0, 0.0, -1.2), radius: 0.5, material: Metal(albedo: Checker(a: (0.9, 0.1, 0.1), b: (1.0, 1.0, 1.0), scale: 4.0), fuzz: 0.02)),
         Sphere(center: (1.1, 0.0, -1.6), radius: 0.5, material: Dielectric(ior: 1.5)),
         Mesh(path: "assets/crystal.obj", material: Dielectric(ior: 1.8), scale: 1.0, translate: (0.0, 0.0, -1.0)),
     ],
 )
 ```
 
+`albedo` takes a `Texture`: `Solid((r,g,b))`, `Checker(a:.., b:.., scale:..)`,
+`Stripes(a:.., b:.., scale:.., axis:0|1|2)`, `Gradient(bottom:.., top:.., y0:.., y1:..)`,
+or `Noise(color:.., scale:.., octaves:..)`.
+
 ## Project layout
 
 - `src/vec3.rs`, `src/ray.rs` - core math
-- `src/camera.rs`, `src/light.rs`, `src/material.rs`, `src/sphere.rs`, `src/triangle.rs` - scene primitives
+- `src/camera.rs`, `src/light.rs`, `src/material.rs`, `src/texture.rs`, `src/sphere.rs`, `src/triangle.rs` - scene primitives
 - `src/hittable.rs`, `src/aabb.rs`, `src/bvh.rs` - intersection + acceleration structure
 - `src/mesh.rs` - hand-rolled OBJ loader
 - `src/scene.rs`, `src/scene_desc.rs` - runtime scene representation and its RON (de)serialization

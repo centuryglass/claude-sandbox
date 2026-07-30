@@ -83,10 +83,31 @@ pub enum GlitchMode {
     /// than a sign/typo error, but it produces the cleanest, most
     /// rotationally-symmetric tiling of the bunch.
     AngularFold,
+
+    /// The real bug, found in the original source (2013, C++). In the
+    /// shader's `getHitColor`, a locally-declared `Vector3D rCol;` inside
+    /// the mirror-reflection branch *shadows* the outer accumulator of the
+    /// same name - so the recursively-computed reflection color gets summed
+    /// into a variable that's discarded when the block ends, and the real
+    /// `rCol` used later is always `(0,0,0)`. But the hit-record used to
+    /// compute that reflection is passed by mutable reference and gets
+    /// updated in place regardless - so the *only* surviving effect of
+    /// "reflecting" is that the shading point silently drifts to wherever
+    /// the reflected ray landed, for every remaining iteration of an inner
+    /// per-light sample loop, and even across lights and nested recursive
+    /// calls (all sharing one mutable hit-record and one shared, never-reset
+    /// bounce budget). The final color ends up being local diffuse lighting
+    /// sampled at a chaotic, order-dependent walk across the scene's
+    /// geometry - not real reflection at all. Two more original quirks
+    /// carried over faithfully: `abs(N.L)` instead of `max(0, N.L)` (so
+    /// back-facing samples light up too), and the diffuse/mirror blend
+    /// factor being (re-)applied once per light rather than once overall, so
+    /// it compounds multiplicatively in multi-light scenes.
+    HitChainDrift,
 }
 
 impl GlitchMode {
-    pub const ALL: [GlitchMode; 10] = [
+    pub const ALL: [GlitchMode; 11] = [
         GlitchMode::None,
         GlitchMode::KaleidoscopeStaleDirection,
         GlitchMode::KaleidoscopeStaleNormal,
@@ -97,6 +118,7 @@ impl GlitchMode {
         GlitchMode::EnergyBleed,
         GlitchMode::NormalDrift,
         GlitchMode::AngularFold,
+        GlitchMode::HitChainDrift,
     ];
 
     pub fn slug(self) -> &'static str {
@@ -111,6 +133,7 @@ impl GlitchMode {
             GlitchMode::EnergyBleed => "07_energy_bleed",
             GlitchMode::NormalDrift => "08_normal_drift",
             GlitchMode::AngularFold => "09_angular_fold",
+            GlitchMode::HitChainDrift => "10_hit_chain_drift",
         }
     }
 
@@ -127,6 +150,7 @@ impl GlitchMode {
             GlitchMode::EnergyBleed => "energy-bleed",
             GlitchMode::NormalDrift => "normal-drift",
             GlitchMode::AngularFold => "angular-fold",
+            GlitchMode::HitChainDrift => "hit-chain-drift",
         }
     }
 

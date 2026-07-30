@@ -9,6 +9,7 @@ use crate::material::Material;
 use crate::mesh;
 use crate::scene::Scene;
 use crate::sphere::Sphere;
+use crate::texture::Texture;
 use crate::vec3::Vec3;
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -63,17 +64,38 @@ pub enum LightDesc {
 }
 
 #[derive(Deserialize, Clone, Copy)]
+pub enum TextureDesc {
+    Solid(Vec3f),
+    Checker { a: Vec3f, b: Vec3f, scale: f64 },
+    Stripes { a: Vec3f, b: Vec3f, scale: f64, axis: usize },
+    Gradient { bottom: Vec3f, top: Vec3f, y0: f64, y1: f64 },
+    Noise { color: Vec3f, scale: f64, octaves: u32 },
+}
+
+impl From<TextureDesc> for Texture {
+    fn from(t: TextureDesc) -> Texture {
+        match t {
+            TextureDesc::Solid(c) => Texture::Solid(v(c)),
+            TextureDesc::Checker { a, b, scale } => Texture::Checker { a: v(a), b: v(b), scale },
+            TextureDesc::Stripes { a, b, scale, axis } => Texture::Stripes { a: v(a), b: v(b), scale, axis },
+            TextureDesc::Gradient { bottom, top, y0, y1 } => Texture::Gradient { bottom: v(bottom), top: v(top), y0, y1 },
+            TextureDesc::Noise { color, scale, octaves } => Texture::Noise { color: v(color), scale, octaves },
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Copy)]
 pub enum MaterialDesc {
-    Lambertian { albedo: Vec3f },
-    Metal { albedo: Vec3f, fuzz: f64 },
+    Lambertian { albedo: TextureDesc },
+    Metal { albedo: TextureDesc, fuzz: f64 },
     Dielectric { ior: f64 },
 }
 
 impl From<MaterialDesc> for Material {
     fn from(m: MaterialDesc) -> Material {
         match m {
-            MaterialDesc::Lambertian { albedo } => Material::Lambertian { albedo: v(albedo) },
-            MaterialDesc::Metal { albedo, fuzz } => Material::Metal { albedo: v(albedo), fuzz },
+            MaterialDesc::Lambertian { albedo } => Material::Lambertian { albedo: albedo.into() },
+            MaterialDesc::Metal { albedo, fuzz } => Material::Metal { albedo: albedo.into(), fuzz },
             MaterialDesc::Dielectric { ior } => Material::Dielectric { ior },
         }
     }

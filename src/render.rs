@@ -54,8 +54,12 @@ pub fn render(scene: &Scene, settings: &RenderSettings) -> RgbImage {
                     let s = (x as f64 + rng.gen_range(0.0..1.0)) / (width - 1) as f64;
                     let t = 1.0 - (y as f64 + rng.gen_range(0.0..1.0)) / (height - 1) as f64;
                     let ray = scene.camera.get_ray(s, t);
-                    let ctx = RayContext { primary_dir: ray.direction.normalized(), glitch };
-                    color += ray_color(&ray, scene, max_depth, &mut rng, &ctx, None);
+                    color += if glitch == GlitchMode::HitChainDrift {
+                        hit_chain_drift_color(&ray, scene, &mut rng)
+                    } else {
+                        let ctx = RayContext { primary_dir: ray.direction.normalized(), glitch };
+                        ray_color(&ray, scene, max_depth, &mut rng, &ctx, None)
+                    };
                 }
                 color = color / samples_per_pixel as f64;
                 let pixel = to_rgb8(color);
@@ -109,6 +113,7 @@ fn ray_color(
 
     match rec.material {
         Material::Lambertian { albedo } => {
+            let albedo = albedo.sample(rec.p);
             let view_dir = -ray.direction.normalized();
             let mut color = scene.ambient * albedo;
             for light in &scene.lights {
@@ -134,6 +139,7 @@ fn ray_color(
         }
 
         Material::Metal { albedo, fuzz } => {
+            let albedo = albedo.sample(rec.p);
             // The flagship glitch: reflect the ORIGINAL camera ray's
             // direction instead of the direction the current bounce actually
             // arrived along. Every mirror in the scene ends up folding the
@@ -211,6 +217,108 @@ fn ray_color(
             }
         }
     }
+}
+
+/// Shared, monotonically-decreasing reflection budget - mirrors `hit`'s
+/// `depth` field in the original C++, which never resets across the whole
+/// call tree since it's one struct passed around by reference.
+const HIT_CHAIN_INITIAL_DEPTH: u32 = 6;
+/// The original shader's `reflectionCount` constructor argument. A plausible
+/// default for a scene tuned to look decent without being unusably slow on
+/// 2013-era student hardware.
+const HIT_CHAIN_REFLECTION_COUNT: u32 = 3;
+
+/// Mutable state standing in for the original's `HitStruct& hit` - shared
+/// and progressively overwritten by (nominally) reflection attempts whose
+/// real color contribution never survives to be used (see [`GlitchMode::HitChainDrift`]).
+struct HitChainState {
+    p: Point3,
+    normal: Vec3,
+    incoming: Vec3,
+    material: Material,
+    depth: u32,
+}
+
+fn hit_chain_drift_color(ray: &Ray, scene: &Scene, rng: &mut impl Rng) -> Color {
+    let Some(rec) = scene.hit(ray, SHADOW_EPS, f64::INFINITY) else {
+        return scene.background(ray);
+    };
+    let mut state = HitChainState {
+        p: rec.p,
+        normal: rec.normal,
+        incoming: ray.direction.normalized(),
+        material: rec.material,
+        depth: HIT_CHAIN_INITIAL_DEPTH,
+    };
+    hit_chain_color(scene, &mut state, rng)
+}
+
+fn mirror_coef_for(material: &Material) -> f64 {
+    match material {
+        Material::Lambertian { .. } => 0.0,
+        Material::Metal { .. } => 0.9,
+        // The original shader had no refraction at all - "glass" objects
+        // were almost certainly just this same diffuse+mirror blend at a
+        // high mirror coefficient, which is exactly why the reference
+        // crystal render was this bug's showcase piece.
+        Material::Dielectric { .. } => 0.85,
+    }
+}
+
+fn albedo_for(material: &Material, p: Point3) -> Color {
+    match material {
+        Material::Lambertian { albedo } => albedo.sample(p),
+        Material::Metal { albedo, .. } => albedo.sample(p),
+        Material::Dielectric { .. } => Color::new(0.9, 0.85, 0.95),
+    }
+}
+
+/// Direct port of `MultiReflectionShader::getHitColor`'s actual behavior
+/// (not its apparent intent). `state` plays the role of the shared,
+/// by-reference `hit` - every level of recursion mutates it in place, and
+/// nothing here resets it back to the original surface point.
+fn hit_chain_color(scene: &Scene, state: &mut HitChainState, rng: &mut impl Rng) -> Color {
+    let mirror_coef = mirror_coef_for(&state.material);
+    let mut shade = Color::ZERO;
+
+    for light in &scene.lights {
+        for _ in 0..HIT_CHAIN_REFLECTION_COUNT {
+            let sample = light.sample(state.p);
+            let shadow_ray = Ray::new(state.p, sample.direction);
+            let in_shadow = scene.hit(&shadow_ray, SHADOW_EPS, sample.distance - SHADOW_EPS).is_some();
+            let shadow_mult = if in_shadow { 0.0 } else { 1.0 };
+
+            // Original bug: abs(N.L), not max(0, N.L) - back-facing samples
+            // light up too.
+            let m = state.normal.dot(sample.direction).abs();
+            let albedo = albedo_for(&state.material, state.p);
+            shade += (albedo * sample.color * m * shadow_mult) / HIT_CHAIN_REFLECTION_COUNT as f64;
+
+            if mirror_coef > 0.0 && state.depth > 0 {
+                state.depth -= 1;
+                let reflected_dir = state.incoming.reflect(state.normal);
+                let ray = Ray::new(state.p, reflected_dir);
+                if let Some(rec) = scene.hit(&ray, SHADOW_EPS, f64::INFINITY) {
+                    // calculateReflection(hit, scene): mutates the shared
+                    // hit state to the new surface, unconditionally.
+                    *state = HitChainState { p: rec.p, normal: rec.normal, incoming: reflected_dir, material: rec.material, depth: state.depth };
+                    // rCol += hit.getHitColor(scene): computed, then thrown
+                    // away when the shadowing local `rCol` goes out of
+                    // scope. Only `state`'s mutation (including whatever
+                    // this recursive call does to it) survives.
+                    let _discarded = hit_chain_color(scene, state, rng);
+                }
+                // Reflected ray missed everything: original falls back to
+                // re-adding the same direct-light term into the (still
+                // discarded) rCol - a no-op for the final image.
+            }
+        }
+        // Bug: applied once per light rather than once overall, so it
+        // compounds multiplicatively across multiple lights.
+        shade *= 1.0 - mirror_coef;
+    }
+
+    shade
 }
 
 /// Standard reflect, or - under [`GlitchMode::FlippedReflectSign`] - the

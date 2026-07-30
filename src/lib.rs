@@ -11,5 +11,6 @@ pub mod render;
 pub mod scene;
 pub mod scene_desc;
 pub mod sphere;
+pub mod texture;
 pub mod triangle;
 pub mod vec3;
