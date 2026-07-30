@@ -1,6 +1,7 @@
 pub mod aabb;
 pub mod bvh;
 pub mod camera;
+pub mod glitch;
 pub mod hittable;
 pub mod light;
 pub mod material;

@@ -9,6 +9,9 @@ pub struct Scene {
     pub lights: Vec<Light>,
     pub ambient: Color,
     pub camera: Camera,
+    /// Sky gradient endpoints: color looking straight down vs. straight up.
+    pub sky_bottom: Color,
+    pub sky_top: Color,
 }
 
 impl Scene {
@@ -20,6 +23,6 @@ impl Scene {
     pub fn background(&self, ray: &Ray) -> Color {
         let unit_dir = ray.direction.normalized();
         let t = 0.5 * (unit_dir.y + 1.0);
-        Color::new(1.0, 1.0, 1.0).lerp(Color::new(0.5, 0.7, 1.0), t)
+        self.sky_bottom.lerp(self.sky_top, t)
     }
 }

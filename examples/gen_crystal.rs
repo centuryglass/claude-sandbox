@@ -7,7 +7,8 @@ use std::f64::consts::PI;
 use std::fmt::Write as _;
 
 fn main() -> Result<()> {
-    let sides = 6;
+    let sides: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(6);
+    let out_path = std::env::args().nth(2).unwrap_or_else(|| "assets/crystal.obj".to_string());
     let radius = 0.6;
     let top = Point3::new(0.0, 1.1, 0.0);
     let bottom = Point3::new(0.0, -1.1, 0.0);
@@ -53,7 +54,7 @@ fn main() -> Result<()> {
     }
 
     std::fs::create_dir_all("assets")?;
-    std::fs::write("assets/crystal.obj", &obj)?;
-    println!("wrote assets/crystal.obj ({} triangles)", faces.len());
+    std::fs::write(&out_path, &obj)?;
+    println!("wrote {out_path} ({} triangles, {sides} sides)", faces.len());
     Ok(())
 }
