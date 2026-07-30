@@ -71,10 +71,22 @@ pub enum GlitchMode {
     /// Unlike the tiling glitches above this one is spatially organic -
     /// surfaces ripple and melt rather than fold into copies.
     NormalDrift,
+
+    /// The most literal take on "kaleidoscope": after computing the
+    /// reflected/refracted direction, its azimuthal angle around the world
+    /// up-axis is folded (mirrored, triangle-wave style) into one of six
+    /// repeating wedges - exactly how a real optical kaleidoscope's ring of
+    /// angled mirrors works, just applied to ray directions instead of
+    /// light rays in a tube. Unlike the axis/normal-corruption bugs above,
+    /// this one is a plausible "helper function reused from the wrong
+    /// context" mistake (e.g. a stray call to a UV-tiling utility) rather
+    /// than a sign/typo error, but it produces the cleanest, most
+    /// rotationally-symmetric tiling of the bunch.
+    AngularFold,
 }
 
 impl GlitchMode {
-    pub const ALL: [GlitchMode; 9] = [
+    pub const ALL: [GlitchMode; 10] = [
         GlitchMode::None,
         GlitchMode::KaleidoscopeStaleDirection,
         GlitchMode::KaleidoscopeStaleNormal,
@@ -84,6 +96,7 @@ impl GlitchMode {
         GlitchMode::SwappedEta,
         GlitchMode::EnergyBleed,
         GlitchMode::NormalDrift,
+        GlitchMode::AngularFold,
     ];
 
     pub fn slug(self) -> &'static str {
@@ -97,6 +110,7 @@ impl GlitchMode {
             GlitchMode::SwappedEta => "06_swapped_eta",
             GlitchMode::EnergyBleed => "07_energy_bleed",
             GlitchMode::NormalDrift => "08_normal_drift",
+            GlitchMode::AngularFold => "09_angular_fold",
         }
     }
 
@@ -112,6 +126,7 @@ impl GlitchMode {
             GlitchMode::SwappedEta => "swapped-eta",
             GlitchMode::EnergyBleed => "energy-bleed",
             GlitchMode::NormalDrift => "normal-drift",
+            GlitchMode::AngularFold => "angular-fold",
         }
     }
 

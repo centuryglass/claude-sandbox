@@ -149,6 +149,9 @@ fn ray_color(
             if ctx.glitch == GlitchMode::AxisSwapReflect {
                 reflected = Vec3::new(reflected.y, reflected.z, reflected.x);
             }
+            if ctx.glitch == GlitchMode::AngularFold {
+                reflected = angular_fold(reflected);
+            }
 
             if ctx.glitch != GlitchMode::FlippedReflectSign && reflected.dot(rec.normal) <= 0.0 {
                 // Fuzz pushed the reflection below the surface; absorb. (Under
@@ -196,6 +199,9 @@ fn ray_color(
             if ctx.glitch == GlitchMode::AxisSwapReflect {
                 direction = Vec3::new(direction.y, direction.z, direction.x);
             }
+            if ctx.glitch == GlitchMode::AngularFold {
+                direction = angular_fold(direction);
+            }
 
             let bounced = ray_color(&Ray::new(rec.p, direction), scene, depth - 1, rng, ctx, next_frozen);
             if ctx.glitch == GlitchMode::EnergyBleed {
@@ -216,6 +222,40 @@ fn reflect_maybe_flipped(d: Vec3, n: Vec3, glitch: GlitchMode) -> Vec3 {
     } else {
         d.reflect(n)
     }
+}
+
+/// Number of mirror wedges in [`GlitchMode::AngularFold`] - matches a
+/// typical toy kaleidoscope's 3-mirror arrangement, doubled by the fold
+/// itself to 6 repeats around the circle.
+const FOLD_SEGMENTS: f64 = 3.0;
+
+/// Folds `d`'s azimuthal angle around the world up-axis into a single
+/// repeating, mirrored wedge - the actual optical principle behind a
+/// kaleidoscope, applied to a ray direction instead of a light ray bouncing
+/// down a mirrored tube. Preserves the angle from the axis (so it doesn't
+/// change how "grazing" the bounce is), only where around the axis it points.
+fn angular_fold(d: Vec3) -> Vec3 {
+    let axis = Vec3::new(0.0, 1.0, 0.0);
+    let cos_theta = d.dot(axis).clamp(-1.0, 1.0);
+    let d_perp = d - axis * cos_theta;
+    let perp_len = d_perp.length();
+    if perp_len < 1e-9 {
+        return d; // Aligned with the fold axis; no azimuth to fold.
+    }
+
+    let b1 = Vec3::new(1.0, 0.0, 0.0);
+    let b1 = (b1 - axis * axis.dot(b1)).normalized();
+    let b2 = axis.cross(b1);
+
+    let phi = d_perp.dot(b2).atan2(d_perp.dot(b1));
+    let wedge = std::f64::consts::TAU / FOLD_SEGMENTS;
+    let mut folded = phi.rem_euclid(wedge);
+    if folded > wedge / 2.0 {
+        folded = wedge - folded; // Mirror the back half of the wedge.
+    }
+
+    let sin_theta = (1.0 - cos_theta * cos_theta).max(0.0).sqrt();
+    axis * cos_theta + (b1 * folded.cos() + b2 * folded.sin()) * sin_theta
 }
 
 /// Corrupts a unit normal's *length* (not just direction) as a smooth

@@ -21,6 +21,18 @@ of light. This project chases that effect (and others like it) by
 implementing a handful of plausible one-line shader bugs as selectable
 render modes — see `src/glitch.rs` for the full writeup of each one.
 
+The closest match turned out to be the most literal reading of
+"kaleidoscope": `angular-fold` mirrors the reflected/refracted direction's
+azimuthal angle into repeating wedges around the vertical axis — the actual
+optical principle behind a toy kaleidoscope's ring of mirrors, just applied
+to a ray direction instead of light in a tube:
+
+<p align="center">
+  <img src="gallery/angular_fold_spheres.png" width="400"><img src="gallery/angular_fold.png" width="400">
+</p>
+
+A few of the other deliberately-wrong reflection axes/formulas:
+
 | | |
 |---|---|
 | ![axis-swap-reflect](gallery/axis_swap_reflect.png) `axis-swap-reflect` — cyclically permute the reflected vector's (x,y,z) before tracing the bounce. Reads as mottled, fragmented faceting. | ![normal-drift](gallery/normal_drift.png) `normal-drift` — corrupt the shading normal's *length* as a smooth function of position, simulating a forgot-to-renormalize bug. Surfaces ripple and marble instead of folding. |
