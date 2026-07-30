@@ -4,10 +4,21 @@ A ray tracer written from scratch in Rust, plus a gallery of renderers that
 deliberately get the physics *wrong* on purpose.
 
 The honest half is a fairly standard Whitted-style ray tracer: spheres and
-triangle meshes, a hand-rolled OBJ loader, a BVH for acceleration, point
-lights with shadow rays, Lambertian/Metal/Dielectric materials (mirror
-reflection, glass refraction with Schlick's Fresnel approximation),
-antialiasing, and a multithreaded render loop.
+triangle meshes, a hand-rolled OBJ loader, a BVH for acceleration, point and
+rectangular-area lights (the latter with real soft shadows) with shadow
+rays, Lambertian/Metal/Dielectric/Emissive materials (mirror reflection,
+glass refraction with Schlick's Fresnel approximation), procedural and
+image textures with real UV mapping, image-based environment lighting,
+five camera projections plus depth of field, antialiasing, and a
+multithreaded render loop. Skip to whichever section covers what you're
+looking for: [glitch gallery](#the-glitch-gallery) ·
+[textures](#textures) · [environment lighting](#environment-lighting) ·
+[area lights](#area-lights-and-soft-shadows) ·
+[emissive materials](#emissive-materials) ·
+[camera projections](#camera-projections) ·
+[depth of field](#depth-of-field) ·
+[inside the geometry](#inside-the-geometry) ·
+[scene format](#scene-format) · [project layout](#project-layout).
 
 <p align="center">
   <img src="gallery/reference.png" width="600" alt="Physically-correct reference render: two faceted glass crystals and a mirror sphere">
@@ -179,16 +190,17 @@ itself (`scenes/earth_environment.ron`):
 
 ### Area lights and soft shadows
 
-The reference 2013 source (`reference/AreaLight.h`, called from
-`MultiReflectionShader.cpp`) has a real `AreaLight` class with a
-`getLightPt` method that picks a jittered point on the light per ray,
-gated behind a comment about needing multiple rays per pixel to pay off.
-That's the standard Monte Carlo soft-shadow technique, and this renderer
-now has its own version: `Light::Rect`, a finite rectangular panel that
-picks a fresh random point on itself for every shadow ray. With enough
-samples per pixel, the many slightly-different shadow rays average into a
-soft penumbra instead of one hard edge - the same reason antialiasing
-falls out for free from multisampling.
+`reference/MultiReflectionShader.cpp` calls into an `AreaLight` class
+(`#include "AreaLight.h"` - referenced but not itself part of what was
+preserved in `reference/`) via a `getLightPt` method that picks a jittered
+point on the light per ray, gated behind a comment about needing multiple
+rays per pixel to pay off. That's the standard Monte Carlo soft-shadow
+technique, and this renderer now has its own version: `Light::Rect`, a
+finite rectangular panel that picks a fresh random point on itself for
+every shadow ray. With enough samples per pixel, the many
+slightly-different shadow rays average into a soft penumbra instead of one
+hard edge - the same reason antialiasing falls out for free from
+multisampling.
 
 Same scene, same light position and roughly the same brightness, only the
 light's shape changes:
@@ -529,8 +541,11 @@ lighting" above. `scenes/nebula_crystals.ron` and
 - `src/glitch.rs` - the glitch gallery: every deliberate physical-inaccuracy mode, with rationale
 - `examples/gen_crystal.rs` - procedurally generates the faceted "gem" test meshes under `assets/`
 - `examples/gen_geode.rs`, `examples/gen_spiral_horn.rs` - procedurally generate the enclosing "cave" and "horn" meshes used by the camera-inside-the-geometry scenes
+- `examples/gen_starfield.rs` - bakes the procedural nebula/starfield environment map under `assets/textures/`
 - `scenes/*.ron` - example scene files
-- `assets/` - OBJ test meshes (procedural crystals, geode, spiral horn, Stanford bunny) and `assets/textures/` - image textures
+- `assets/` - OBJ test meshes (procedural crystals, geode, spiral horn, Stanford bunny) and `assets/textures/` - image textures; see `assets/README.md` for what's this project's own work vs. sourced elsewhere, and licensing/provenance for each
+- `gallery/` - rendered PNGs/GIFs referenced by this README (every image here was produced by this renderer, not hand-picked from elsewhere)
+- `reference/` - the actual 2013 C++ source behind the whole project, kept verbatim - see `reference/README.md`
 
 ## Tests
 
