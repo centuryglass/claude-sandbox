@@ -105,13 +105,28 @@ A `Texture::Image` variant maps an actual photo instead, which does need
 real UV coordinates - `HitRecord` carries `u`/`v` now, `Sphere` computes
 standard spherical UV, and the OBJ loader parses `vt` and barycentrically
 interpolates it across triangles (meshes with no `vt` data default to
-`(0, 0)`, which reads as one corner pixel tiled everywhere - fine for the
-procedural crystal/geode/horn meshes here, none of which emit UVs yet).
-Bilinearly filtered, tiles beyond `[0, 1]`. A public-domain NASA Blue
-Marble composite lines up exactly with the sphere mapping:
+`(0, 0)`, which reads as one corner pixel tiled everywhere). Bilinearly
+filtered, tiles beyond `[0, 1]`. All three procedural generators emit their
+own natural UV now too: `gen_crystal.rs` and `gen_spiral_horn.rs` use
+cylindrical mapping (`u` around the axis/tube, `v` along the height/spine),
+`gen_geode.rs` uses the same spherical formula as `Sphere` but keyed to each
+vertex's *undisplaced* unit direction, so the radial bumps don't skew the
+mapping. A public-domain NASA Blue Marble composite lines up exactly with
+the sphere mapping:
 
 <p align="center">
   <img src="gallery/earth_texture.png" width="500" alt="A sphere textured with a NASA Blue Marble Earth photo, correctly UV-mapped">
+</p>
+
+The same photo on a sphere, the faceted crystal, and the spiral horn, side
+by side and wrapped along its own length respectively - each mesh's own UV
+parametrization doing something visibly different with the same image:
+
+<p align="center">
+  <img src="gallery/procedural_mesh_uv_test.png" width="600" alt="Earth texture mapped onto a sphere, a faceted crystal, and a geode fragment side by side">
+</p>
+<p align="center">
+  <img src="gallery/spiral_horn_uv_test.png" width="500" alt="Earth texture spiraling along the twisted spiral horn mesh">
 </p>
 
 And, closing the loop: the actual 2013 photo that started this whole

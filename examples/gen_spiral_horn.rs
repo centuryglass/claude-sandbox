@@ -41,13 +41,18 @@ fn spine_sample(t: f64, turns: f64, length: f64, helix_r0: f64, helix_r1: f64, t
     SpineSample { center, tangent, tube_radius, twist }
 }
 
+/// A mesh vertex's position paired with its `(u, v)` texture coordinate, so
+/// winding fixes and everything else move both together and they can never
+/// end up mismatched.
+type Vertex = (Point3, (f64, f64));
+
 /// Same winding-safety trick as `gen_crystal.rs` - compute the face normal
 /// and flip it if it points the wrong way - just generalized to take an
 /// explicit "this point is inside the solid" reference instead of one global
 /// center. A spiral tube isn't star-shaped around a single point, but each
 /// short local segment of it is, so a nearby reference point is enough.
-fn fix_winding(mut tri: [Point3; 3], inward_ref: Point3) -> [Point3; 3] {
-    let [a, b, c] = tri;
+fn fix_winding(mut tri: [Vertex; 3], inward_ref: Point3) -> [Vertex; 3] {
+    let [(a, _), (b, _), (c, _)] = tri;
     let normal = (b - a).cross(c - a);
     let centroid = (a + b + c) / 3.0;
     if normal.dot(centroid - inward_ref) < 0.0 {
@@ -105,17 +110,26 @@ fn main() -> Result<()> {
         })
         .collect();
 
-    let mut faces: Vec<[Point3; 3]> = Vec::new();
+    let mut faces: Vec<[Vertex; 3]> = Vec::new();
+
+    // UV: u wraps once around the tube's cross-section, v runs 0 (tip) to 1
+    // (bell). `j` past the last side uses a continuous (non-wrapped) u so
+    // the seam face stretches from u=1-1/sides to a full u=1 instead of
+    // snapping back to 0.
+    let ring_v = |i: usize| i as f64 / (rings - 1) as f64;
+    let side_u = |j: usize| j as f64 / sides as f64;
 
     // Tube wall: two triangles per side per ring segment.
     for i in 0..rings - 1 {
         let local_ref = (samples[i].center + samples[i + 1].center) * 0.5;
         for j in 0..sides {
             let j2 = (j + 1) % sides;
-            let a = ring_points[i][j];
-            let b = ring_points[i][j2];
-            let c = ring_points[i + 1][j2];
-            let d = ring_points[i + 1][j];
+            let (u0, u1) = (side_u(j), side_u(j + 1));
+            let (v0, v1) = (ring_v(i), ring_v(i + 1));
+            let a = (ring_points[i][j], (u0, v0));
+            let b = (ring_points[i][j2], (u1, v0));
+            let c = (ring_points[i + 1][j2], (u1, v1));
+            let d = (ring_points[i + 1][j], (u0, v1));
             faces.push(fix_winding([a, b, c], local_ref));
             faces.push(fix_winding([a, c, d], local_ref));
         }
@@ -123,24 +137,33 @@ fn main() -> Result<()> {
 
     // Closed tip: fan the first ring in to a point just beyond it. The wide
     // end is deliberately left open - that's the bell a camera looks out
-    // through from inside.
+    // through from inside. The tip's own u is the midpoint of each face's
+    // two ring vertices, avoiding unnecessary UV distortion away from the
+    // one unavoidable seam (same idea as `gen_crystal.rs`'s apexes).
     let tip = samples[0].center - samples[0].tangent * (samples[0].tube_radius * 2.0);
     let tip_ref = samples[1].center;
     for j in 0..sides {
         let j2 = (j + 1) % sides;
-        faces.push(fix_winding([tip, ring_points[0][j], ring_points[0][j2]], tip_ref));
+        let (u0, u1) = (side_u(j), side_u(j + 1));
+        let tip_vertex = (tip, ((u0 + u1) / 2.0, 0.0));
+        let a = (ring_points[0][j], (u0, ring_v(0)));
+        let b = (ring_points[0][j2], (u1, ring_v(0)));
+        faces.push(fix_winding([tip_vertex, a, b], tip_ref));
     }
 
     let mut obj = String::new();
     writeln!(obj, "# procedurally generated spiral horn (fluted, open bell, closed tip)")?;
     for face in &faces {
-        for v in face {
-            writeln!(obj, "v {} {} {}", v.x, v.y, v.z)?;
+        for (p, _) in face {
+            writeln!(obj, "v {} {} {}", p.x, p.y, p.z)?;
+        }
+        for (_, (u, v)) in face {
+            writeln!(obj, "vt {u} {v}")?;
         }
     }
     let mut idx = 1;
     for _ in &faces {
-        writeln!(obj, "f {} {} {}", idx, idx + 1, idx + 2)?;
+        writeln!(obj, "f {i0}/{i0} {i1}/{i1} {i2}/{i2}", i0 = idx, i1 = idx + 1, i2 = idx + 2)?;
         idx += 3;
     }
 

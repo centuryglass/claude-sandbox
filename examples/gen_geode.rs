@@ -47,6 +47,19 @@ fn make_bumps(seed: u64, count: usize) -> Vec<Bump> {
         .collect()
 }
 
+/// Standard spherical UV (same formula as `Sphere`'s in `src/sphere.rs`,
+/// duplicated rather than imported since it's a private helper there).
+/// Takes the vertex's *undisplaced* unit direction, not its final bumped
+/// position, so the radial bumps don't skew the mapping - only where a
+/// point sits angularly on the base sphere determines its UV, matching how
+/// a real geode's surface texture would follow the underlying rock rather
+/// than stretching over every bump.
+fn uv_for(dir: Point3) -> (f64, f64) {
+    let theta = (-dir.y).acos();
+    let phi = (-dir.z).atan2(dir.x) + PI;
+    (phi / (2.0 * PI), theta / PI)
+}
+
 fn displaced_radius(dir: Point3, bumps: &[Bump]) -> f64 {
     let mut r = 1.0;
     for bump in bumps {
@@ -122,8 +135,11 @@ fn main() -> Result<()> {
     let displaced: Vec<Point3> = verts.iter().map(|&d| d * displaced_radius(d, &bumps)).collect();
 
     let center = Point3::ZERO;
-    let mut tri_faces: Vec<[Point3; 3]> =
-        faces.iter().map(|&[a, b, c]| [displaced[a], displaced[b], displaced[c]]).collect();
+    // Each vertex carries its displaced position (for geometry) and its
+    // original undisplaced unit direction (for UV) as a pair, so a winding
+    // swap moves both together and they never get mismatched.
+    let mut tri_faces: Vec<[(Point3, Point3); 3]> =
+        faces.iter().map(|&[a, b, c]| [(displaced[a], verts[a]), (displaced[b], verts[b]), (displaced[c], verts[c])]).collect();
 
     // Don't trust hand-derived winding order (same trick as gen_crystal.rs):
     // compute each face's normal and flip it if it points inward relative to
@@ -131,7 +147,7 @@ fn main() -> Result<()> {
     // base radius, so every face's centroid is still roughly star-shaped
     // around the origin and one global reference point is enough.
     for face in &mut tri_faces {
-        let [a, b, c] = *face;
+        let [(a, _), (b, _), (c, _)] = *face;
         let normal = (b - a).cross(c - a);
         let centroid = (a + b + c) / 3.0;
         if normal.dot(centroid - center) < 0.0 {
@@ -142,13 +158,17 @@ fn main() -> Result<()> {
     let mut obj = String::new();
     writeln!(obj, "# procedurally generated geodesic geode / cave shell")?;
     for face in &tri_faces {
-        for v in face {
-            writeln!(obj, "v {} {} {}", v.x, v.y, v.z)?;
+        for (p, _) in face {
+            writeln!(obj, "v {} {} {}", p.x, p.y, p.z)?;
+        }
+        for (_, dir) in face {
+            let (u, v) = uv_for(*dir);
+            writeln!(obj, "vt {u} {v}")?;
         }
     }
     let mut idx = 1;
     for _ in &tri_faces {
-        writeln!(obj, "f {} {} {}", idx, idx + 1, idx + 2)?;
+        writeln!(obj, "f {i0}/{i0} {i1}/{i1} {i2}/{i2}", i0 = idx, i1 = idx + 1, i2 = idx + 2)?;
         idx += 3;
     }
 
