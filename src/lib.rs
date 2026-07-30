@@ -9,6 +9,7 @@ pub mod mesh;
 pub mod ray;
 pub mod render;
 pub mod scene;
+pub mod scene_desc;
 pub mod sphere;
 pub mod triangle;
 pub mod vec3;

@@ -1,3 +1,4 @@
+use clap::Parser;
 use lumin::camera::Camera;
 use lumin::glitch::GlitchMode;
 use lumin::hittable::Hittable;
@@ -6,12 +7,58 @@ use lumin::material::Material;
 use lumin::mesh;
 use lumin::render::{self, RenderSettings};
 use lumin::scene::Scene;
+use lumin::scene_desc::SceneDesc;
 use lumin::sphere::Sphere;
 use lumin::triangle::Triangle;
 use lumin::vec3::{Color, Point3, Vec3};
+use std::path::PathBuf;
 
 const MAX_DEPTH: u32 = 12;
 const SAMPLES_PER_PIXEL: u32 = 256;
+
+/// lumin: a small ray tracer, plus a gallery of deliberately broken
+/// reflection/refraction shaders. With no arguments, renders the built-in
+/// demo gallery (baseline scenes + every glitch mode). Given a scene file,
+/// renders just that scene.
+#[derive(Parser)]
+#[command(name = "lumin", version)]
+struct Cli {
+    /// RON scene file to render (see scenes/*.ron for examples). If
+    /// omitted, runs the built-in demo/gallery instead.
+    scene: Option<PathBuf>,
+
+    /// Image width in pixels.
+    #[arg(short, long, default_value_t = 800)]
+    width: u32,
+
+    /// Image height in pixels. Defaults to width / aspect.
+    #[arg(long)]
+    height: Option<u32>,
+
+    /// Width / height.
+    #[arg(long, default_value_t = 16.0 / 9.0)]
+    aspect: f64,
+
+    /// Samples per pixel (antialiasing / glass noise quality).
+    #[arg(short, long, default_value_t = 128)]
+    samples: u32,
+
+    /// Maximum ray bounce depth.
+    #[arg(short, long, default_value_t = 24)]
+    depth: u32,
+
+    /// Which glitch mode to render. Ignored if --gallery is set.
+    #[arg(short, long, default_value = "none")]
+    glitch: GlitchMode,
+
+    /// Render every glitch mode instead of just --glitch, one file per mode.
+    #[arg(long)]
+    gallery: bool,
+
+    /// Output file (single-scene mode) or directory (--gallery mode).
+    #[arg(short, long, default_value = "renders/output.png")]
+    output: PathBuf,
+}
 
 /// The pale blue sky used by the "honest" physically-based scenes.
 const SKY_BOTTOM: Color = Color::new(1.0, 1.0, 1.0);
@@ -257,15 +304,20 @@ fn hall_of_mirrors_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
     })
 }
 
-fn render_to(scene: &Scene, settings: &RenderSettings, path: &str) -> anyhow::Result<()> {
+fn render_to(scene: &Scene, settings: &RenderSettings, path: impl AsRef<std::path::Path>) -> anyhow::Result<()> {
+    let path = path.as_ref();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     let img = render::render(scene, settings);
-    std::fs::create_dir_all("renders")?;
     img.save(path)?;
-    println!("wrote {path}");
+    println!("wrote {}", path.display());
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
+/// The built-in demo: every baseline scene plus the full glitch gallery.
+/// Run with no CLI arguments.
+fn run_builtin_demo() -> anyhow::Result<()> {
     let aspect_ratio = 16.0 / 9.0;
     let width: u32 = 800;
     let height: u32 = (width as f64 / aspect_ratio) as u32;
@@ -292,6 +344,33 @@ fn main() -> anyhow::Result<()> {
     // reflective object can't - worth its own showcase image.
     let hall_glitch = glitch_settings.with_glitch(GlitchMode::AxisSwapReflect);
     render_to(&hall_of_mirrors_scene(aspect_ratio)?, &hall_glitch, "renders/glitch_hall_axis_swap_reflect.png")?;
+
+    Ok(())
+}
+
+fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+
+    let Some(scene_path) = cli.scene else {
+        return run_builtin_demo();
+    };
+
+    let height = cli.height.unwrap_or_else(|| (cli.width as f64 / cli.aspect) as u32);
+    let settings = RenderSettings::new(cli.width, height, cli.samples, cli.depth);
+    let scene_desc = SceneDesc::load(&scene_path)?;
+
+    if cli.gallery {
+        // In gallery mode `--output` names a directory; scene needs
+        // rebuilding per mode since meshes are consumed on scene build.
+        for mode in GlitchMode::ALL {
+            let scene = SceneDesc::load(&scene_path)?.build(cli.aspect)?;
+            let path = cli.output.join(format!("{}.png", mode.slug()));
+            render_to(&scene, &settings.with_glitch(mode), path)?;
+        }
+    } else {
+        let scene = scene_desc.build(cli.aspect)?;
+        render_to(&scene, &settings.with_glitch(cli.glitch), &cli.output)?;
+    }
 
     Ok(())
 }

@@ -1,0 +1,24 @@
+// The glitch-gallery cluster: two dense faceted crystals plus mirror spheres.
+// Render honestly with: cargo run --release -- scenes/crystal_showcase.ron
+// Or see the whole glitch gallery on it: cargo run --release -- scenes/crystal_showcase.ron --gallery
+(
+    camera: (
+        look_from: (0.0, 0.85, 2.4),
+        look_at: (0.0, 0.1, -1.0),
+        vfov: 42.0,
+    ),
+    ambient: (0.1, 0.1, 0.1),
+    sky_bottom: (1.0, 0.85, 0.1),
+    sky_top: (0.85, 0.15, 0.55),
+    lights: [
+        Point(position: (-3.5, 4.5, 2.5), color: (1.0, 1.0, 1.0), intensity: 40.0),
+        Point(position: (3.0, 2.0, 3.0), color: (1.0, 0.85, 0.6), intensity: 18.0),
+    ],
+    objects: [
+        Sphere(center: (0.0, -100.5, -1.0), radius: 100.0, material: Lambertian(albedo: (0.5, 0.5, 0.55))),
+        Sphere(center: (0.95, -0.1, -0.55), radius: 0.45, material: Metal(albedo: (0.92, 0.92, 0.95), fuzz: 0.0)),
+        Sphere(center: (0.15, -0.35, -0.15), radius: 0.15, material: Metal(albedo: (0.9, 0.75, 0.35), fuzz: 0.05)),
+        Mesh(path: "assets/crystal_dense.obj", material: Dielectric(ior: 1.8), scale: 1.15, translate: (0.0, 0.15, -1.3)),
+        Mesh(path: "assets/crystal_dense.obj", material: Dielectric(ior: 1.8), scale: 0.5, translate: (-0.85, -0.35, -0.7)),
+    ],
+)

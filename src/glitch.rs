@@ -99,4 +99,39 @@ impl GlitchMode {
             GlitchMode::NormalDrift => "08_normal_drift",
         }
     }
+
+    /// CLI/config-facing name (kebab-case, no ordinal prefix).
+    pub fn name(self) -> &'static str {
+        match self {
+            GlitchMode::None => "none",
+            GlitchMode::KaleidoscopeStaleDirection => "kaleidoscope-stale-direction",
+            GlitchMode::KaleidoscopeStaleNormal => "kaleidoscope-stale-normal",
+            GlitchMode::FlippedReflectSign => "flipped-reflect-sign",
+            GlitchMode::AxisSwapReflect => "axis-swap-reflect",
+            GlitchMode::InvertedFresnel => "inverted-fresnel",
+            GlitchMode::SwappedEta => "swapped-eta",
+            GlitchMode::EnergyBleed => "energy-bleed",
+            GlitchMode::NormalDrift => "normal-drift",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<GlitchMode> {
+        GlitchMode::ALL.into_iter().find(|m| m.name() == name)
+    }
+}
+
+impl std::str::FromStr for GlitchMode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        GlitchMode::from_name(s).ok_or_else(|| {
+            let names: Vec<_> = GlitchMode::ALL.iter().map(|m| m.name()).collect();
+            format!("unknown glitch mode {s:?}; expected one of: {}", names.join(", "))
+        })
+    }
+}
+
+impl std::fmt::Display for GlitchMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
 }
