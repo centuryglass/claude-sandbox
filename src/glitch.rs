@@ -106,22 +106,23 @@ pub enum GlitchMode {
     HitChainDrift,
 
     /// The original source's *other* function, `mapLightRay` (presumably a
-    /// forward light-tracing / photon-mapping path, never fully ported here
-    /// - that would need real photon storage and forward tracing from
+    /// forward light-tracing / photon-mapping path, never fully ported here,
+    /// since that would need real photon storage and forward tracing from
     /// lights, a different architecture entirely). Its bugs are simple
-    /// enough to borrow directly on top of our normal backward ray tracing:
-    /// (1) the local lighting term dots the *incident ray direction* with
-    /// the normal without negating it first, so ordinary front-lit surfaces
-    /// (where incoming and normal oppose each other) go dark, and only
-    /// grazing/back-facing geometry lights up; (2) bounces terminate on an
-    /// unweighted coin flip (`rand() > 0.5`) with no compensating survival
-    /// weight, the textbook way to make Russian roulette biased instead of
-    /// unbiased, so brightness varies noisily sample to sample; (3) a
-    /// reflection ray that hits nothing returns a literal `(-1,-1,-1)`
-    /// sentinel that - unlike the "stop" branch - never gets clamped back
-    /// into range, so it bleeds through the recursive color math as-is,
-    /// occasionally flipping a product's sign into an impossible bright
-    /// pixel where two negatives multiply positive.
+    /// enough to borrow directly on top of our normal backward ray tracing.
+    /// First: the local lighting term dots the *incident ray direction*
+    /// with the normal without negating it first, so ordinary front-lit
+    /// surfaces (where incoming and normal oppose each other) go dark, and
+    /// only grazing/back-facing geometry lights up. Second: bounces
+    /// terminate on an unweighted coin flip (`rand() > 0.5`) with no
+    /// compensating survival weight, the textbook way to make Russian
+    /// roulette biased instead of unbiased, so brightness varies noisily
+    /// sample to sample. Third: a reflection ray that hits nothing returns
+    /// a literal `(-1,-1,-1)` sentinel that - unlike the "stop" branch -
+    /// never gets clamped back into range, so it bleeds through the
+    /// recursive color math as-is, occasionally flipping a product's sign
+    /// into an impossible bright pixel where two negatives multiply
+    /// positive.
     CoinFlipMiss,
 }
 

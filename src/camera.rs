@@ -74,10 +74,10 @@ impl Camera {
 
     /// Thin-lens perspective camera: like `new`, but rays originate from a
     /// random point on a lens disk of radius `aperture / 2` instead of a
-    /// single point, all still converging on the same plane at `focus_dist`
-    /// - the classic depth-of-field trick. `aperture = 0.0` is exactly
-    /// `new`'s pinhole camera (and, since multiplying by a zero-radius disk
-    /// offset is a no-op, produces byte-identical rays to it).
+    /// single point, all still converging on the same plane at `focus_dist`,
+    /// the classic depth-of-field trick. `aperture = 0.0` is exactly `new`'s
+    /// pinhole camera (and, since multiplying by a zero-radius disk offset
+    /// is a no-op, produces byte-identical rays to it).
     pub fn new_thin_lens(look_from: Point3, look_at: Point3, vup: Vec3, vfov: f64, aspect_ratio: f64, aperture: f64, focus_dist: f64) -> Self {
         Camera::Perspective(PerspectiveCamera::new_thin_lens(look_from, look_at, vup, vfov, aspect_ratio, aperture, focus_dist))
     }

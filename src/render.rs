@@ -64,7 +64,7 @@ pub fn render(scene: &Scene, settings: &RenderSettings) -> RgbImage {
                         }
                     };
                 }
-                color = color / samples_per_pixel as f64;
+                color /= samples_per_pixel as f64;
                 let pixel = to_rgb8(color);
                 let idx = (x * 3) as usize;
                 row[idx..idx + 3].copy_from_slice(&pixel.0);
@@ -284,6 +284,11 @@ fn albedo_for(material: &Material, p: Point3) -> Color {
 /// (not its apparent intent). `state` plays the role of the shared,
 /// by-reference `hit` - every level of recursion mutates it in place, and
 /// nothing here resets it back to the original surface point.
+// `rng` is only ever forwarded to the recursive call, never sampled here -
+// faithful to the original, which had no randomness in this path either.
+// Kept in the signature (not `_rng`) for symmetry with the other recursive
+// glitch functions and in case a future variant wants to add jitter.
+#[allow(clippy::only_used_in_recursion)]
 fn hit_chain_color(scene: &Scene, state: &mut HitChainState, rng: &mut impl Rng) -> Color {
     // Not in the original (which had no emissive materials at all), but the
     // sane behavior: a light source shows its own glow, full stop, rather

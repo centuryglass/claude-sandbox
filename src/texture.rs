@@ -84,7 +84,7 @@ fn turbulence(p: Point3, octaves: u32) -> f64 {
         sum += value_noise(freq_p) * amplitude;
         max += amplitude;
         amplitude *= 0.5;
-        freq_p = freq_p * 2.0;
+        freq_p *= 2.0;
     }
     sum / max
 }
