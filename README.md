@@ -2,10 +2,9 @@
 A ray tracer written from scratch in Rust, plus a gallery of renderers that
 deliberately get the physics *wrong* on purpose.
 
-[Note: My GitHub username is all over the commit history, but I wrote
-literally none of this, besides the ancient C++ in ./reference I gave Claude
-to serve as a seed for this project, and these couple sentences. Everything
-else is all AI-generated. -Anthony Brown]
+[Note: I gave Claude a thirteen year old bug from an old student project
+of mine that produced some interesting results back then, and Claude gave
+me all of this in less than a day. -Anthony Brown]
 
 The honest half is a fairly standard Whitted-style ray tracer: spheres and
 triangle meshes, a hand-rolled OBJ loader, a BVH for acceleration, point and
