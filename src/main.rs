@@ -118,7 +118,7 @@ fn reflection_scene(aspect_ratio: f64) -> Scene {
         aspect_ratio,
     );
 
-    Scene { objects, lights, ambient: Color::splat(0.08), camera, sky_bottom: SKY_BOTTOM, sky_top: SKY_TOP }
+    Scene { objects, lights, ambient: Color::splat(0.08), camera, sky_bottom: SKY_BOTTOM, sky_top: SKY_TOP, environment: None }
 }
 
 fn crystal_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
@@ -161,7 +161,7 @@ fn crystal_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
         aspect_ratio,
     );
 
-    Ok(Scene { objects, lights, ambient: Color::splat(0.08), camera, sky_bottom: SKY_BOTTOM, sky_top: SKY_TOP })
+    Ok(Scene { objects, lights, ambient: Color::splat(0.08), camera, sky_bottom: SKY_BOTTOM, sky_top: SKY_TOP, environment: None })
 }
 
 /// A cluster of crystals and mirror spheres, tuned to give reflective rays
@@ -228,6 +228,7 @@ fn glitch_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
         camera,
         sky_bottom: Color::new(1.0, 0.85, 0.1),
         sky_top: Color::new(0.85, 0.15, 0.55),
+        environment: None,
     })
 }
 
@@ -308,6 +309,7 @@ fn hall_of_mirrors_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
         camera,
         sky_bottom: Color::new(1.0, 0.85, 0.1),
         sky_top: Color::new(0.85, 0.15, 0.55),
+        environment: None,
     })
 }
 

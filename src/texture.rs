@@ -111,14 +111,18 @@ impl ImageTexture {
 /// Hash-based value noise: deterministic pseudo-random value per lattice
 /// corner, trilinearly interpolated. No external noise crate - just a hash
 /// function and a lerp, in the spirit of the rest of this renderer.
-fn hash(x: i64, y: i64, z: i64) -> f64 {
+///
+/// `pub` (rather than private to this module) so the `gen_starfield` example
+/// can reuse the exact same noise for baking a procedural environment map,
+/// instead of duplicating it.
+pub fn hash(x: i64, y: i64, z: i64) -> f64 {
     let mut h = x.wrapping_mul(374761393) ^ y.wrapping_mul(668265263) ^ z.wrapping_mul(2147483647);
     h = (h ^ (h >> 13)).wrapping_mul(1274126177);
     h ^= h >> 16;
     (h & 0xFFFFFF) as f64 / 0xFFFFFF as f64
 }
 
-fn value_noise(p: Point3) -> f64 {
+pub fn value_noise(p: Point3) -> f64 {
     let (x0, y0, z0) = (p.x.floor() as i64, p.y.floor() as i64, p.z.floor() as i64);
     let (fx, fy, fz) = (p.x - x0 as f64, p.y - y0 as f64, p.z - z0 as f64);
     // Smoothstep for a less blocky interpolation than raw linear.
@@ -144,7 +148,7 @@ fn value_noise(p: Point3) -> f64 {
     lerp(y0v, y1v, w)
 }
 
-fn turbulence(p: Point3, octaves: u32) -> f64 {
+pub fn turbulence(p: Point3, octaves: u32) -> f64 {
     let mut sum = 0.0;
     let mut amplitude = 1.0;
     let mut freq_p = p;

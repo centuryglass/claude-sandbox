@@ -30,6 +30,11 @@ pub struct SceneDesc {
     pub sky_bottom: Vec3f,
     #[serde(default = "default_sky_top")]
     pub sky_top: Vec3f,
+    /// Optional environment map (typically `Image("path.jpg")`), sampled by
+    /// ray direction wherever no geometry is hit - overrides
+    /// `sky_bottom`/`sky_top` when set.
+    #[serde(default)]
+    pub environment: Option<TextureDesc>,
     #[serde(default)]
     pub lights: Vec<LightDesc>,
     pub objects: Vec<ObjectDesc>,
@@ -202,6 +207,8 @@ impl SceneDesc {
             CameraKind::Equirectangular => Camera::new_equirectangular(look_from, look_at, vup),
         };
 
+        let environment = self.environment.map(TextureDesc::build).transpose()?;
+
         Ok(Scene {
             objects,
             lights,
@@ -209,6 +216,7 @@ impl SceneDesc {
             camera,
             sky_bottom: v(self.sky_bottom),
             sky_top: v(self.sky_top),
+            environment,
         })
     }
 }

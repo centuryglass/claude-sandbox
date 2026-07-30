@@ -115,6 +115,20 @@ impl Vec3 {
             }
         }
     }
+
+    /// Standard spherical UV for a unit direction, in fixed *world* axes
+    /// (not relative to any camera): `u` wraps once around the equator
+    /// (longitude), `v` runs 0 (south pole, -y) to 1 (north pole, +y). The
+    /// shared convention for `Sphere`'s surface UV and world-space
+    /// environment-map sampling - deliberately not the same convention
+    /// `EquirectangularCamera` uses for its own view mapping, which is
+    /// camera-relative and answers a different question ("what does this
+    /// camera see") rather than "where is this direction on a fixed skybox".
+    pub fn to_equirect_uv(self) -> (f64, f64) {
+        let theta = (-self.y).acos();
+        let phi = (-self.z).atan2(self.x) + std::f64::consts::PI;
+        (phi / (2.0 * std::f64::consts::PI), theta / std::f64::consts::PI)
+    }
 }
 
 impl Index<usize> for Vec3 {

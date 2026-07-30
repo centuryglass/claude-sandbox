@@ -137,6 +137,46 @@ renderer's own from-scratch faceted crystal:
   <img src="gallery/amethyst_reference_sphere.png" width="600" alt="The original 2013 reference photo mapped as a texture onto a sphere, next to a procedurally-generated crystal">
 </p>
 
+### Environment lighting
+
+A `Scene` can carry an optional `environment: Texture`, sampled by ray
+direction (same spherical UV as `Sphere`) anywhere a ray escapes the scene
+with no geometry hit, overriding the flat two-color sky gradient. Since it's
+just a `Texture`, any variant works - an image, or a procedural one.
+
+Rather than reach for another found photo (public-domain sourcing is the
+hard part, not the code), the showcase environment is entirely hand-rolled:
+`examples/gen_starfield.rs` bakes an equirectangular nebula/starfield by
+reusing this renderer's own hash-based value noise (`texture::turbulence`),
+evaluated in 3D on the sphere itself (not in 2D image space) so the
+u-wraparound seam and both poles come out seamless for free. A domain-warped
+turbulence field drives cloud density and a second, independent lattice
+scatters stars, both fed through a continuous three-stop color ramp.
+
+No ground plane, nothing to block it - every reflective and refractive
+surface picks up the nebula's color and stars directly:
+
+<p align="center">
+  <img src="gallery/nebula_environment.png" width="700" alt="Glass and mirror crystals/spheres floating in a procedurally generated nebula environment map">
+</p>
+
+And since every glitch mode works by distorting reflection/refraction
+directions, environment lighting interacts with all of them - here's
+`axis-swap-reflect` folding the same scene, turning the mirror sphere's
+nebula reflection into a hard-edged crescent void:
+
+<p align="center">
+  <img src="gallery/nebula_environment_axis_swap_reflect.png" width="700" alt="The same nebula scene rendered through the axis-swap-reflect glitch mode, showing a folded crescent void on the mirror sphere">
+</p>
+
+A real photo works too, of course - the same public-domain NASA Blue Marble
+composite used for the sphere texture above, this time as the environment
+itself (`scenes/earth_environment.ron`):
+
+<p align="center">
+  <img src="gallery/earth_environment.png" width="500" alt="A mirror sphere and a glass sphere reflecting and refracting an earth photo used as an environment map">
+</p>
+
 ### Emissive materials
 
 `Material::Emissive { color, intensity }` radiates its own color/texture
@@ -419,6 +459,7 @@ definition. Shape:
     camera: (look_from: (0.0, 0.8, 2.5), look_at: (0.0, 0.0, -1.0), vfov: 45.0),
     sky_bottom: (1.0, 1.0, 1.0),   // optional, defaults to a pale blue sky
     sky_top: (0.5, 0.7, 1.0),      // optional
+    environment: Some(Image("assets/textures/nebula.png")), // optional, overrides sky_bottom/sky_top
     lights: [
         Point(position: (-4.0, 5.0, 2.0), color: (1.0, 1.0, 1.0), intensity: 40.0),
     ],
@@ -441,6 +482,12 @@ bilinearly filtered - see "Textures" above for which primitives compute real UVs
 above. `scenes/fisheye_crystal.ron`, `scenes/equirect_crystal.ron`,
 `scenes/orthographic_crystal.ron`, and `scenes/little_planet.ron` are
 complete examples of each non-default kind.
+
+`environment` takes the same `Texture` grammar as `albedo` above (most
+usefully `Image("path.png")`) and, when set, replaces `sky_bottom`/`sky_top`
+as whatever every ray that escapes the scene sees - see "Environment
+lighting" above. `scenes/nebula_crystals.ron` and
+`scenes/earth_environment.ron` are complete examples.
 
 ## Project layout
 

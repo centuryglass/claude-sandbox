@@ -1,0 +1,14 @@
+// Environment lighting with a real equirectangular photo (NASA's public-
+// domain Blue Marble earth imagery) rather than the procedural nebula in
+// nebula_crystals.ron - any Texture works as an environment map, image or
+// procedural. Render with: cargo run --release -- scenes/earth_environment.ron
+(
+    camera: (look_from: (0.0, 0.5, 3.0), look_at: (0.0, 0.0, -1.0), vfov: 45.0),
+    ambient: (0.05, 0.05, 0.05),
+    environment: Some(Image("assets/textures/earth.jpg")),
+    lights: [Point(position: (-3.0, 4.0, 3.0), color: (1.0, 1.0, 1.0), intensity: 20.0)],
+    objects: [
+        Sphere(center: (0.0, 0.0, -1.0), radius: 0.6, material: Metal(albedo: Solid((0.95, 0.95, 0.97)), fuzz: 0.0)),
+        Sphere(center: (1.3, -0.1, -0.5), radius: 0.4, material: Dielectric(ior: 1.5)),
+    ],
+)

@@ -1,0 +1,31 @@
+// Crystals and mirror/glass spheres floating in a hand-rolled procedural
+// nebula/starfield environment map (see examples/gen_starfield.rs) instead
+// of the flat sky gradient. No ground plane, so every reflective and
+// refractive surface picks up the nebula's color and scattered stars with
+// nothing in the way.
+// Render honestly with:
+//   cargo run --release -- scenes/nebula_crystals.ron
+// Or feed it through a glitch mode - environment lighting interacts with
+// every one of them, since they all distort reflection/refraction
+// directions and now there's a richly detailed background to fold:
+//   cargo run --release -- scenes/nebula_crystals.ron --glitch hit-chain-drift
+(
+    camera: (
+        look_from: (0.0, 0.6, 2.6),
+        look_at: (0.0, 0.0, -1.0),
+        vfov: 42.0,
+    ),
+    ambient: (0.03, 0.03, 0.05),
+    environment: Some(Image("assets/textures/nebula.png")),
+    lights: [
+        Point(position: (-3.0, 3.5, 2.5), color: (1.0, 0.95, 0.9), intensity: 25.0),
+        Point(position: (2.5, 1.5, 3.0), color: (0.6, 0.75, 1.0), intensity: 12.0),
+    ],
+    objects: [
+        Mesh(path: "assets/crystal_dense.obj", material: Dielectric(ior: 1.8), scale: 1.15, translate: (0.0, 0.15, -1.3)),
+        Mesh(path: "assets/crystal_dense.obj", material: Dielectric(ior: 1.6), scale: 0.55, translate: (-0.95, -0.15, -0.7)),
+        Sphere(center: (0.95, -0.05, -0.55), radius: 0.45, material: Metal(albedo: Solid((0.92, 0.92, 0.95)), fuzz: 0.0)),
+        Sphere(center: (0.2, -0.45, 0.15), radius: 0.18, material: Metal(albedo: Solid((0.9, 0.75, 0.35)), fuzz: 0.06)),
+        Sphere(center: (-0.3, -0.5, 0.35), radius: 0.14, material: Dielectric(ior: 1.5)),
+    ],
+)

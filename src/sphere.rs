@@ -3,7 +3,6 @@ use crate::hittable::{HitRecord, Hittable};
 use crate::material::Material;
 use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
-use std::f64::consts::PI;
 
 pub struct Sphere {
     pub center: Point3,
@@ -15,14 +14,6 @@ impl Sphere {
     pub fn new(center: Point3, radius: f64, material: Material) -> Self {
         Sphere { center, radius, material }
     }
-}
-
-/// Standard spherical UV mapping for a unit outward normal: `u` wraps once
-/// around the equator (longitude), `v` runs 0 (south pole) to 1 (north pole).
-fn sphere_uv(outward_normal: Vec3) -> (f64, f64) {
-    let theta = (-outward_normal.y).acos();
-    let phi = (-outward_normal.z).atan2(outward_normal.x) + PI;
-    (phi / (2.0 * PI), theta / PI)
 }
 
 impl Hittable for Sphere {
@@ -48,7 +39,7 @@ impl Hittable for Sphere {
 
         let p = ray.at(root);
         let outward_normal = (p - self.center) / self.radius;
-        let (u, v) = sphere_uv(outward_normal);
+        let (u, v) = outward_normal.to_equirect_uv();
         Some(HitRecord::new(p, root, ray, outward_normal, self.material.clone(), u, v))
     }
 
