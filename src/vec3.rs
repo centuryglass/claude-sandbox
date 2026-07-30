@@ -81,6 +81,29 @@ impl Vec3 {
     pub fn component(self, axis: usize) -> f64 {
         self[axis]
     }
+
+    pub fn random(rng: &mut impl rand::Rng, min: f64, max: f64) -> Vec3 {
+        Vec3::new(
+            rng.gen_range(min..max),
+            rng.gen_range(min..max),
+            rng.gen_range(min..max),
+        )
+    }
+
+    /// Uniformly-distributed point strictly inside the unit ball, via
+    /// rejection sampling (simple, and plenty fast for our sample counts).
+    pub fn random_in_unit_sphere(rng: &mut impl rand::Rng) -> Vec3 {
+        loop {
+            let p = Vec3::random(rng, -1.0, 1.0);
+            if p.length_squared() < 1.0 {
+                return p;
+            }
+        }
+    }
+
+    pub fn random_unit_vector(rng: &mut impl rand::Rng) -> Vec3 {
+        Vec3::random_in_unit_sphere(rng).normalized()
+    }
 }
 
 impl Index<usize> for Vec3 {

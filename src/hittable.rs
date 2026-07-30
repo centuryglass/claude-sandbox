@@ -1,3 +1,4 @@
+use crate::aabb::Aabb;
 use crate::material::Material;
 use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
@@ -24,6 +25,9 @@ impl HitRecord {
 
 pub trait Hittable: Sync {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord>;
+
+    /// All primitives in this renderer are finite, so this is not `Option`.
+    fn bounding_box(&self) -> Aabb;
 }
 
 impl Hittable for Vec<Box<dyn Hittable>> {
@@ -37,5 +41,12 @@ impl Hittable for Vec<Box<dyn Hittable>> {
             }
         }
         result
+    }
+
+    fn bounding_box(&self) -> Aabb {
+        self.iter()
+            .map(|o| o.bounding_box())
+            .reduce(Aabb::surrounding)
+            .expect("bounding_box called on empty object list")
     }
 }
