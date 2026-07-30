@@ -2,6 +2,8 @@
 name = "lumin"
 version = "0.1.0"
 edition = "2024"
+description = "A ray tracer, and a gallery of deliberately broken reflection/refraction shaders"
+license = "Unlicense"
 
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["png"] }
