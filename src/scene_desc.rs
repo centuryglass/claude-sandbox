@@ -51,11 +51,45 @@ pub struct CameraDesc {
     pub look_at: Vec3f,
     #[serde(default = "default_vup")]
     pub vup: Vec3f,
+    /// Projection type. Defaults to `Perspective`, so every scene file
+    /// written before this field existed keeps rendering exactly as before -
+    /// this is a hard compatibility requirement, not just a nicety.
+    #[serde(default)]
+    pub kind: CameraKind,
+    /// Vertical field of view in degrees: `Perspective`'s classic tan-based
+    /// FOV, and also the true angular field of view for `Fisheye` /
+    /// `Stereographic` (see `Camera::new_fisheye`). Unused by `Orthographic`
+    /// (parallel rays don't converge, so there's no angle to size - see
+    /// `height` instead) and by `Equirectangular` (always covers the whole
+    /// sphere, so there's nothing to size at all).
+    #[serde(default = "default_vfov")]
     pub vfov: f64,
+    /// World-space vertical extent of the frame. Only meaningful for
+    /// `Orthographic`.
+    #[serde(default = "default_ortho_height")]
+    pub height: f64,
 }
 
 fn default_vup() -> Vec3f {
     (0.0, 1.0, 0.0)
+}
+
+fn default_vfov() -> f64 {
+    45.0
+}
+
+fn default_ortho_height() -> f64 {
+    2.0
+}
+
+#[derive(Deserialize, Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub enum CameraKind {
+    #[default]
+    Perspective,
+    Orthographic,
+    Fisheye,
+    Stereographic,
+    Equirectangular,
 }
 
 #[derive(Deserialize)]
@@ -142,7 +176,14 @@ impl SceneDesc {
             })
             .collect();
 
-        let camera = Camera::new(v(self.camera.look_from), v(self.camera.look_at), v(self.camera.vup), self.camera.vfov, aspect_ratio);
+        let (look_from, look_at, vup) = (v(self.camera.look_from), v(self.camera.look_at), v(self.camera.vup));
+        let camera = match self.camera.kind {
+            CameraKind::Perspective => Camera::new(look_from, look_at, vup, self.camera.vfov, aspect_ratio),
+            CameraKind::Orthographic => Camera::new_orthographic(look_from, look_at, vup, self.camera.height, aspect_ratio),
+            CameraKind::Fisheye => Camera::new_fisheye(look_from, look_at, vup, self.camera.vfov, aspect_ratio),
+            CameraKind::Stereographic => Camera::new_stereographic(look_from, look_at, vup, self.camera.vfov, aspect_ratio),
+            CameraKind::Equirectangular => Camera::new_equirectangular(look_from, look_at, vup),
+        };
 
         Ok(Scene {
             objects,
