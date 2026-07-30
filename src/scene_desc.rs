@@ -89,6 +89,7 @@ pub enum MaterialDesc {
     Lambertian { albedo: TextureDesc },
     Metal { albedo: TextureDesc, fuzz: f64 },
     Dielectric { ior: f64 },
+    Emissive { color: TextureDesc, intensity: f64 },
 }
 
 impl From<MaterialDesc> for Material {
@@ -97,6 +98,7 @@ impl From<MaterialDesc> for Material {
             MaterialDesc::Lambertian { albedo } => Material::Lambertian { albedo: albedo.into() },
             MaterialDesc::Metal { albedo, fuzz } => Material::Metal { albedo: albedo.into(), fuzz },
             MaterialDesc::Dielectric { ior } => Material::Dielectric { ior },
+            MaterialDesc::Emissive { color, intensity } => Material::Emissive { color: color.into(), intensity },
         }
     }
 }

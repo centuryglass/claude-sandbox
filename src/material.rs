@@ -12,4 +12,9 @@ pub enum Material {
     /// Dielectric (glass-like) surface: `ior` is the material's index of
     /// refraction relative to vacuum/air (glass ~1.5, water ~1.33, diamond ~2.4).
     Dielectric { ior: f64 },
+    /// Light-emitting surface: radiates `color * intensity` regardless of
+    /// incident light, and does not itself receive shading. A crystal core,
+    /// a lava crack, a neon strip - the object *is* a light source, rather
+    /// than something a light source shines on.
+    Emissive { color: Texture, intensity: f64 },
 }

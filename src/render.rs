@@ -112,6 +112,8 @@ fn ray_color(
     };
 
     match rec.material {
+        Material::Emissive { color, intensity } => color.sample(rec.p) * intensity,
+
         Material::Lambertian { albedo } => {
             let albedo = albedo.sample(rec.p);
             let view_dir = -ray.direction.normalized();
@@ -262,6 +264,7 @@ fn mirror_coef_for(material: &Material) -> f64 {
         // high mirror coefficient, which is exactly why the reference
         // crystal render was this bug's showcase piece.
         Material::Dielectric { .. } => 0.85,
+        Material::Emissive { .. } => 0.0,
     }
 }
 
@@ -270,6 +273,7 @@ fn albedo_for(material: &Material, p: Point3) -> Color {
         Material::Lambertian { albedo } => albedo.sample(p),
         Material::Metal { albedo, .. } => albedo.sample(p),
         Material::Dielectric { .. } => Color::new(0.9, 0.85, 0.95),
+        Material::Emissive { color, intensity } => color.sample(p) * *intensity,
     }
 }
 
@@ -278,6 +282,13 @@ fn albedo_for(material: &Material, p: Point3) -> Color {
 /// by-reference `hit` - every level of recursion mutates it in place, and
 /// nothing here resets it back to the original surface point.
 fn hit_chain_color(scene: &Scene, state: &mut HitChainState, rng: &mut impl Rng) -> Color {
+    // Not in the original (which had no emissive materials at all), but the
+    // sane behavior: a light source shows its own glow, full stop, rather
+    // than participating in the drift.
+    if let Material::Emissive { color, intensity } = state.material {
+        return color.sample(state.p) * intensity;
+    }
+
     let mirror_coef = mirror_coef_for(&state.material);
     let mut shade = Color::ZERO;
 

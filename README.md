@@ -84,6 +84,24 @@ plumbing - and it's what makes `hit-chain-drift`'s chaotic walk visible at
 all, since a solid-colored object can't show you that its sampled point
 silently moved.
 
+### Emissive materials
+
+`Material::Emissive { color, intensity }` radiates its own color/texture
+regardless of incident light, instead of being shaded by the scene's lights.
+There's no full global illumination here (this is still a Whitted-style
+direct-lighting tracer), so an emissive surface doesn't cast light onto
+*other* objects the way a `Light` does — but seen directly, through glass, or
+in a mirror, that's enough for a glowing crystal core:
+
+<p align="center">
+  <img src="gallery/glowing_core.png" width="400"><img src="gallery/glowing_core_angular_fold.png" width="400">
+</p>
+
+`angular-fold` (right) folds the glow's refracted path into a symmetric
+petal shape entirely as a side effect of folding the reflection/refraction
+angle - not something anyone designed, just what falls out of applying a
+literal optical trick to a glowing object seen through glass.
+
 It even holds up on a real mesh - the Stanford bunny (69,451 triangles)
 under `normal-drift`:
 
