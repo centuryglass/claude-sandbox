@@ -104,10 +104,29 @@ pub enum GlitchMode {
     /// factor being (re-)applied once per light rather than once overall, so
     /// it compounds multiplicatively in multi-light scenes.
     HitChainDrift,
+
+    /// The original source's *other* function, `mapLightRay` (presumably a
+    /// forward light-tracing / photon-mapping path, never fully ported here
+    /// - that would need real photon storage and forward tracing from
+    /// lights, a different architecture entirely). Its bugs are simple
+    /// enough to borrow directly on top of our normal backward ray tracing:
+    /// (1) the local lighting term dots the *incident ray direction* with
+    /// the normal without negating it first, so ordinary front-lit surfaces
+    /// (where incoming and normal oppose each other) go dark, and only
+    /// grazing/back-facing geometry lights up; (2) bounces terminate on an
+    /// unweighted coin flip (`rand() > 0.5`) with no compensating survival
+    /// weight, the textbook way to make Russian roulette biased instead of
+    /// unbiased, so brightness varies noisily sample to sample; (3) a
+    /// reflection ray that hits nothing returns a literal `(-1,-1,-1)`
+    /// sentinel that - unlike the "stop" branch - never gets clamped back
+    /// into range, so it bleeds through the recursive color math as-is,
+    /// occasionally flipping a product's sign into an impossible bright
+    /// pixel where two negatives multiply positive.
+    CoinFlipMiss,
 }
 
 impl GlitchMode {
-    pub const ALL: [GlitchMode; 11] = [
+    pub const ALL: [GlitchMode; 12] = [
         GlitchMode::None,
         GlitchMode::KaleidoscopeStaleDirection,
         GlitchMode::KaleidoscopeStaleNormal,
@@ -119,6 +138,7 @@ impl GlitchMode {
         GlitchMode::NormalDrift,
         GlitchMode::AngularFold,
         GlitchMode::HitChainDrift,
+        GlitchMode::CoinFlipMiss,
     ];
 
     pub fn slug(self) -> &'static str {
@@ -134,6 +154,7 @@ impl GlitchMode {
             GlitchMode::NormalDrift => "08_normal_drift",
             GlitchMode::AngularFold => "09_angular_fold",
             GlitchMode::HitChainDrift => "10_hit_chain_drift",
+            GlitchMode::CoinFlipMiss => "11_coin_flip_miss",
         }
     }
 
@@ -151,6 +172,7 @@ impl GlitchMode {
             GlitchMode::NormalDrift => "normal-drift",
             GlitchMode::AngularFold => "angular-fold",
             GlitchMode::HitChainDrift => "hit-chain-drift",
+            GlitchMode::CoinFlipMiss => "coin-flip-miss",
         }
     }
 

@@ -1,4 +1,5 @@
 use crate::glitch::GlitchMode;
+use crate::hittable::HitRecord;
 use crate::material::Material;
 use crate::ray::Ray;
 use crate::scene::Scene;
@@ -54,11 +55,13 @@ pub fn render(scene: &Scene, settings: &RenderSettings) -> RgbImage {
                     let s = (x as f64 + rng.gen_range(0.0..1.0)) / (width - 1) as f64;
                     let t = 1.0 - (y as f64 + rng.gen_range(0.0..1.0)) / (height - 1) as f64;
                     let ray = scene.camera.get_ray(s, t);
-                    color += if glitch == GlitchMode::HitChainDrift {
-                        hit_chain_drift_color(&ray, scene, &mut rng)
-                    } else {
-                        let ctx = RayContext { primary_dir: ray.direction.normalized(), glitch };
-                        ray_color(&ray, scene, max_depth, &mut rng, &ctx, None)
+                    color += match glitch {
+                        GlitchMode::HitChainDrift => hit_chain_drift_color(&ray, scene, &mut rng),
+                        GlitchMode::CoinFlipMiss => coin_flip_miss_entry(&ray, scene, max_depth, &mut rng),
+                        _ => {
+                            let ctx = RayContext { primary_dir: ray.direction.normalized(), glitch };
+                            ray_color(&ray, scene, max_depth, &mut rng, &ctx, None)
+                        }
                     };
                 }
                 color = color / samples_per_pixel as f64;
@@ -330,6 +333,61 @@ fn hit_chain_color(scene: &Scene, state: &mut HitChainState, rng: &mut impl Rng)
     }
 
     shade
+}
+
+/// Entry point for [`GlitchMode::CoinFlipMiss`], modeled on the original
+/// source's *other* function, `mapLightRay` (see `reference/`). Unlike
+/// `hit-chain-drift` this isn't a literal port - `mapLightRay` looks like
+/// the entry point to a forward light-tracing/photon-mapping pass, an
+/// architecture this backward ray tracer doesn't have - but its specific
+/// bugs translate directly onto a normal recursive bounce.
+fn coin_flip_miss_entry(ray: &Ray, scene: &Scene, depth: u32, rng: &mut impl Rng) -> Color {
+    match scene.hit(ray, SHADOW_EPS, f64::INFINITY) {
+        Some(rec) => coin_flip_miss_color(ray, &rec, scene, Color::ONE, depth, rng),
+        None => scene.background(ray),
+    }
+}
+
+fn clamp01(c: Color) -> Color {
+    Color::new(c.x.clamp(0.0, 1.0), c.y.clamp(0.0, 1.0), c.z.clamp(0.0, 1.0))
+}
+
+fn coin_flip_miss_color(ray: &Ray, rec: &HitRecord, scene: &Scene, incoming_light: Color, depth: u32, rng: &mut impl Rng) -> Color {
+    // Bug: dots the ray's own incident direction against the normal without
+    // negating it first. A ray arriving at a front-facing surface has
+    // direction roughly opposite the normal, so this is negative and clamps
+    // to 0 - ordinary front-lit surfaces go dark; only grazing/back-facing
+    // geometry (where this dot product happens to be positive) lights up.
+    let m = ray.direction.normalized().dot(rec.normal).max(0.0);
+    let albedo = albedo_for(&rec.material, rec.p);
+    let mut shade = albedo * incoming_light * m;
+
+    let mirror_coef = mirror_coef_for(&rec.material);
+    if mirror_coef > 0.0 {
+        shade = shade * (1.0 - mirror_coef) + incoming_light * mirror_coef;
+    }
+
+    // Bug: an unweighted coin flip instead of properly-weighted Russian
+    // roulette (which would divide the result by the survival probability
+    // to stay unbiased). Some paths stop after one hit, others bounce many
+    // times, and both get averaged into the pixel with equal weight -
+    // brightness varies noisily sample to sample.
+    if depth == 0 || rng.gen_range(0.0..1.0) > 0.5 {
+        return clamp01(shade);
+    }
+
+    let reflected = ray.direction.normalized().reflect(rec.normal);
+    let bounce_ray = Ray::new(rec.p, reflected);
+    match scene.hit(&bounce_ray, SHADOW_EPS, f64::INFINITY) {
+        Some(next_rec) => coin_flip_miss_color(&bounce_ray, &next_rec, scene, shade, depth - 1, rng),
+        // Bug: an unclamped miss sentinel. Unlike the "stop" branch above,
+        // this value is returned as-is straight into the caller's `shade *
+        // incoming_light` multiplication one level up - a negative feeding
+        // into a product can flip the sign of the *next* level's result too,
+        // occasionally producing an impossible bright pixel from two
+        // negatives multiplying positive.
+        None => Color::new(-1.0, -1.0, -1.0),
+    }
 }
 
 /// Standard reflect, or - under [`GlitchMode::FlippedReflectSign`] - the

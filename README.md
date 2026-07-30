@@ -51,6 +51,23 @@ happened to wander:
   <img src="gallery/hit_chain_drift_crystal.png" width="600" alt="Faceted crystals and a mirror sphere under hit-chain-drift">
 </p>
 
+The source's *other* function, `mapLightRay` (evidently a forward light-
+tracing/photon-mapping entry point - never fully ported, that's a different
+architecture from this backward ray tracer), has its own bugs worth stealing
+on their own: `coin-flip-miss` dots the incident ray direction against the
+normal *without negating it first*, so ordinary front-lit surfaces go dark
+and only grazing/back-facing geometry lights up; bounces terminate on an
+unweighted coin flip instead of properly-weighted Russian roulette, so
+brightness varies noisily sample to sample; and a reflection ray that hits
+nothing returns an unclamped `(-1,-1,-1)` sentinel that bleeds through the
+recursive math instead of getting corrected. The result: sparkling salt-and-
+pepper noise and eclipse-like crescent rim lighting where surfaces would
+normally read as flat-shaded:
+
+<p align="center">
+  <img src="gallery/coin_flip_miss.png" width="600" alt="Crystal cluster under coin-flip-miss: mostly black with sparkling noise and bright grazing-angle rim light">
+</p>
+
 ### Other explorations
 
 The most literal reading of "kaleidoscope" turned out to be a good creative
