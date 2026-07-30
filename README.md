@@ -101,6 +101,27 @@ plumbing - and it's what makes `hit-chain-drift`'s chaotic walk visible at
 all, since a solid-colored object can't show you that its sampled point
 silently moved.
 
+A `Texture::Image` variant maps an actual photo instead, which does need
+real UV coordinates - `HitRecord` carries `u`/`v` now, `Sphere` computes
+standard spherical UV, and the OBJ loader parses `vt` and barycentrically
+interpolates it across triangles (meshes with no `vt` data default to
+`(0, 0)`, which reads as one corner pixel tiled everywhere - fine for the
+procedural crystal/geode/horn meshes here, none of which emit UVs yet).
+Bilinearly filtered, tiles beyond `[0, 1]`. A public-domain NASA Blue
+Marble composite lines up exactly with the sphere mapping:
+
+<p align="center">
+  <img src="gallery/earth_texture.png" width="500" alt="A sphere textured with a NASA Blue Marble Earth photo, correctly UV-mapped">
+</p>
+
+And, closing the loop: the actual 2013 photo that started this whole
+project (see "The real bug" above), mapped onto a sphere right next to this
+renderer's own from-scratch faceted crystal:
+
+<p align="center">
+  <img src="gallery/amethyst_reference_sphere.png" width="600" alt="The original 2013 reference photo mapped as a texture onto a sphere, next to a procedurally-generated crystal">
+</p>
+
 ### Emissive materials
 
 `Material::Emissive { color, intensity }` radiates its own color/texture
@@ -317,6 +338,16 @@ mosaic fragmentation:
   <img src="gallery/spiral_horn_interior_angular_fold.png" width="600" alt="Spiral horn interior under angular-fold: bold flat color wedges reflected across the crystal facets">
 </p>
 
+A `--animate` turntable of this scene is honest about the horn being a
+curved tube, not a fully enclosing shell like the geode: some frames stay
+immersed in the fluted walls, others swing wide toward open sky as the
+orbit clears the throat - not a bug, just what an orbiting camera does
+inside an asymmetric space:
+
+<p align="center">
+  <img src="gallery/spiral_horn_turntable.gif" width="500" alt="Turntable animation of the spiral horn interior under hit-chain-drift">
+</p>
+
 Render either with:
 
 ```sh
@@ -387,7 +418,8 @@ definition. Shape:
 
 `albedo` takes a `Texture`: `Solid((r,g,b))`, `Checker(a:.., b:.., scale:..)`,
 `Stripes(a:.., b:.., scale:.., axis:0|1|2)`, `Gradient(bottom:.., top:.., y0:.., y1:..)`,
-or `Noise(color:.., scale:.., octaves:..)`.
+`Noise(color:.., scale:.., octaves:..)`, or `Image("path/to/file.png")` (UV-mapped,
+bilinearly filtered - see "Textures" above for which primitives compute real UVs).
 
 `camera` also takes an optional `kind` (`Perspective` by default) plus
 `height`, only meaningful for `Orthographic` - see "Camera projections"
@@ -407,7 +439,7 @@ complete examples of each non-default kind.
 - `examples/gen_crystal.rs` - procedurally generates the faceted "gem" test meshes under `assets/`
 - `examples/gen_geode.rs`, `examples/gen_spiral_horn.rs` - procedurally generate the enclosing "cave" and "horn" meshes used by the camera-inside-the-geometry scenes
 - `scenes/*.ron` - example scene files
-- `assets/` - OBJ test meshes (procedural crystals, geode, spiral horn, Stanford bunny)
+- `assets/` - OBJ test meshes (procedural crystals, geode, spiral horn, Stanford bunny) and `assets/textures/` - image textures
 
 ## Tests
 

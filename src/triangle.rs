@@ -6,6 +6,8 @@ use crate::vec3::{Point3, Vec3};
 
 const EPS: f64 = 1e-8;
 
+type Uv = (f64, f64);
+
 pub struct Triangle {
     pub v0: Point3,
     pub v1: Point3,
@@ -13,16 +15,26 @@ pub struct Triangle {
     /// Per-vertex normals for Phong/Gouraud-style smooth shading. When absent,
     /// the flat face normal is used everywhere (faceted look).
     pub normals: Option<(Vec3, Vec3, Vec3)>,
+    /// Per-vertex texture coordinates, barycentrically interpolated. When
+    /// absent, texture coordinates default to `(0, 0)` everywhere - fine for
+    /// procedural world-space textures, but an image texture on an
+    /// untextured mesh will just show one corner pixel repeated.
+    pub uvs: Option<(Uv, Uv, Uv)>,
     pub material: Material,
 }
 
 impl Triangle {
     pub fn new(v0: Point3, v1: Point3, v2: Point3, material: Material) -> Self {
-        Triangle { v0, v1, v2, normals: None, material }
+        Triangle { v0, v1, v2, normals: None, uvs: None, material }
     }
 
     pub fn with_normals(mut self, n0: Vec3, n1: Vec3, n2: Vec3) -> Self {
         self.normals = Some((n0, n1, n2));
+        self
+    }
+
+    pub fn with_uvs(mut self, uv0: Uv, uv1: Uv, uv2: Uv) -> Self {
+        self.uvs = Some((uv0, uv1, uv2));
         self
     }
 
@@ -44,14 +56,14 @@ impl Hittable for Triangle {
         let inv_det = 1.0 / det;
 
         let tvec = ray.origin - self.v0;
-        let u = tvec.dot(pvec) * inv_det;
-        if !(0.0..=1.0).contains(&u) {
+        let bary_u = tvec.dot(pvec) * inv_det;
+        if !(0.0..=1.0).contains(&bary_u) {
             return None;
         }
 
         let qvec = tvec.cross(edge1);
-        let v = ray.direction.dot(qvec) * inv_det;
-        if v < 0.0 || u + v > 1.0 {
+        let bary_v = ray.direction.dot(qvec) * inv_det;
+        if bary_v < 0.0 || bary_u + bary_v > 1.0 {
             return None;
         }
 
@@ -59,16 +71,18 @@ impl Hittable for Triangle {
         if t < t_min || t > t_max {
             return None;
         }
+        let bary_w = 1.0 - bary_u - bary_v;
 
         let p = ray.at(t);
         let outward_normal = match self.normals {
-            Some((n0, n1, n2)) => {
-                let w = 1.0 - u - v;
-                (w * n0 + u * n1 + v * n2).normalized()
-            }
+            Some((n0, n1, n2)) => (bary_w * n0 + bary_u * n1 + bary_v * n2).normalized(),
             None => self.face_normal(),
         };
-        Some(HitRecord::new(p, t, ray, outward_normal, self.material))
+        let (tex_u, tex_v) = match self.uvs {
+            Some(((u0, v0), (u1, v1), (u2, v2))) => (bary_w * u0 + bary_u * u1 + bary_v * u2, bary_w * v0 + bary_u * v1 + bary_v * v2),
+            None => (0.0, 0.0),
+        };
+        Some(HitRecord::new(p, t, ray, outward_normal, self.material.clone(), tex_u, tex_v))
     }
 
     fn bounding_box(&self) -> Aabb {

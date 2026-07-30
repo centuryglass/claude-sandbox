@@ -234,10 +234,10 @@ fn glitch_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
 /// Builds a flat rectangular mirror from two triangles, given its four
 /// corners in order around the perimeter. Winding is auto-corrected against
 /// `desired_normal` so callers don't have to hand-derive it.
-fn quad_facing(p0: Point3, p1: Point3, p2: Point3, p3: Point3, desired_normal: Vec3, material: Material) -> [Box<dyn Hittable>; 2] {
+fn quad_facing(p0: Point3, p1: Point3, p2: Point3, p3: Point3, desired_normal: Vec3, material: &Material) -> [Box<dyn Hittable>; 2] {
     let n = (p1 - p0).cross(p2 - p0);
     let (a, b, c, d) = if n.dot(desired_normal) < 0.0 { (p0, p3, p2, p1) } else { (p0, p1, p2, p3) };
-    [Box::new(Triangle::new(a, b, c, material)), Box::new(Triangle::new(a, c, d, material))]
+    [Box::new(Triangle::new(a, b, c, material.clone())), Box::new(Triangle::new(a, c, d, material.clone()))]
 }
 
 /// Two facing mirror walls with a crystal between them: the classic "hall of
@@ -265,7 +265,7 @@ fn hall_of_mirrors_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
         Point3::new(-1.6, y1, z_far),
         Point3::new(-1.6, y1, z_near),
         Vec3::new(1.0, 0.0, 0.0),
-        mirror,
+        &mirror,
     ));
     // Right wall (x = 1.6), facing -x.
     objects.extend(quad_facing(
@@ -274,7 +274,7 @@ fn hall_of_mirrors_scene(aspect_ratio: f64) -> anyhow::Result<Scene> {
         Point3::new(1.6, y1, z_far),
         Point3::new(1.6, y1, z_near),
         Vec3::new(-1.0, 0.0, 0.0),
-        mirror,
+        &mirror,
     ));
     objects.push(Box::new(Sphere::new(
         Point3::new(0.0, -100.5, -1.0),

@@ -1,10 +1,14 @@
-//! Procedural, world-space textures. No UV coordinates needed - everything
-//! samples directly from the 3D hit point, which keeps mesh support simple
-//! and (as a bonus) means textures interact naturally with glitch modes that
-//! corrupt hit positions.
+//! Textures: procedural world-space ones (sampled directly from the 3D hit
+//! point - works uniformly across spheres and arbitrary meshes with zero UV
+//! plumbing, and interacts naturally with glitch modes that corrupt hit
+//! positions) plus image textures (which do need real UV coordinates, since
+//! there's no other sane way to map a photo onto a surface).
 use crate::vec3::{Color, Point3};
+use anyhow::{Context, Result};
+use std::path::Path;
+use std::sync::Arc;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Texture {
     Solid(Color),
     Checker { a: Color, b: Color, scale: f64 },
@@ -13,10 +17,16 @@ pub enum Texture {
     Gradient { bottom: Color, top: Color, y0: f64, y1: f64 },
     /// Fractal value noise ("turbulence") modulating brightness around `color`.
     Noise { color: Color, scale: f64, octaves: u32 },
+    /// An image sampled by UV coordinates, bilinearly filtered, tiling
+    /// beyond `[0, 1]`. `Arc`-wrapped so cloning a `Texture` (cheap and
+    /// frequent - every `Material` carries one) never copies pixel data.
+    Image(Arc<ImageTexture>),
 }
 
 impl Texture {
-    pub fn sample(&self, p: Point3) -> Color {
+    /// `p` is used by the world-space variants; `u`, `v` by `Image`. Each
+    /// variant only looks at whichever it needs.
+    pub fn sample(&self, p: Point3, u: f64, v: f64) -> Color {
         match self {
             Texture::Solid(c) => *c,
             Texture::Checker { a, b, scale } => {
@@ -35,7 +45,66 @@ impl Texture {
                 let t = turbulence(p * *scale, *octaves);
                 *color * (0.4 + 0.6 * t)
             }
+            Texture::Image(img) => img.sample(u, v),
         }
+    }
+}
+
+/// A decoded, immutable image sampled by UV coordinates.
+pub struct ImageTexture {
+    width: u32,
+    height: u32,
+    // Row-major, top-to-bottom, RGB, one byte per channel - decoded once at
+    // load time so sampling is a plain index instead of repeated format
+    // dispatch through the `image` crate.
+    pixels: Vec<[u8; 3]>,
+}
+
+impl std::fmt::Debug for ImageTexture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ImageTexture").field("width", &self.width).field("height", &self.height).finish_non_exhaustive()
+    }
+}
+
+impl ImageTexture {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        let img = image::open(path).with_context(|| format!("loading image texture {}", path.display()))?.into_rgb8();
+        let (width, height) = (img.width(), img.height());
+        let pixels = img.pixels().map(|p| p.0).collect();
+        Ok(ImageTexture { width, height, pixels })
+    }
+
+    /// Bilinear sample, tiling `u`/`v` beyond `[0, 1]`. `v = 0` is the
+    /// bottom of the image and `v = 1` the top, matching this renderer's
+    /// other conventions (`sphere_uv`, viewport `t`) - the opposite of the
+    /// image's own top-to-bottom row order, hence the flip below. Sampled
+    /// values are used as-is (not sRGB-decoded): every other color in this
+    /// renderer is an author-specified linear-ish `[0, 1]` value with gamma
+    /// correction applied once at final output, so treating image bytes the
+    /// same way keeps the whole pipeline consistent, even if not
+    /// colorimetrically "correct".
+    fn sample(&self, u: f64, v: f64) -> Color {
+        let u = u.rem_euclid(1.0);
+        let v = 1.0 - v.rem_euclid(1.0);
+
+        let fx = u * self.width as f64 - 0.5;
+        let fy = v * self.height as f64 - 0.5;
+        let x0 = fx.floor();
+        let y0 = fy.floor();
+        let (tx, ty) = (fx - x0, fy - y0);
+
+        let wrap = |v: f64, n: u32| (v.rem_euclid(n as f64)) as u32;
+        let texel = |xi: f64, yi: f64| -> Color {
+            let px = self.pixels[(wrap(yi, self.height) * self.width + wrap(xi, self.width)) as usize];
+            Color::new(px[0] as f64 / 255.0, px[1] as f64 / 255.0, px[2] as f64 / 255.0)
+        };
+
+        let c00 = texel(x0, y0);
+        let c10 = texel(x0 + 1.0, y0);
+        let c01 = texel(x0, y0 + 1.0);
+        let c11 = texel(x0 + 1.0, y0 + 1.0);
+        c00.lerp(c10, tx).lerp(c01.lerp(c11, tx), ty)
     }
 }
 
@@ -96,16 +165,16 @@ mod tests {
     #[test]
     fn checker_alternates_across_a_cell_boundary() {
         let tex = Texture::Checker { a: Color::new(1.0, 0.0, 0.0), b: Color::new(0.0, 1.0, 0.0), scale: 1.0 };
-        assert_eq!(tex.sample(Point3::new(0.5, 0.0, 0.5)), Color::new(1.0, 0.0, 0.0));
-        assert_eq!(tex.sample(Point3::new(1.5, 0.0, 0.5)), Color::new(0.0, 1.0, 0.0));
+        assert_eq!(tex.sample(Point3::new(0.5, 0.0, 0.5), 0.0, 0.0), Color::new(1.0, 0.0, 0.0));
+        assert_eq!(tex.sample(Point3::new(1.5, 0.0, 0.5), 0.0, 0.0), Color::new(0.0, 1.0, 0.0));
     }
 
     #[test]
     fn gradient_endpoints_match_bottom_and_top() {
         let tex = Texture::Gradient { bottom: Color::new(0.0, 0.0, 0.0), top: Color::new(1.0, 1.0, 1.0), y0: 0.0, y1: 10.0 };
-        assert_eq!(tex.sample(Point3::new(0.0, 0.0, 0.0)), Color::ZERO);
-        assert_eq!(tex.sample(Point3::new(0.0, 10.0, 0.0)), Color::ONE);
-        assert_eq!(tex.sample(Point3::new(0.0, 999.0, 0.0)), Color::ONE); // clamped past y1
+        assert_eq!(tex.sample(Point3::new(0.0, 0.0, 0.0), 0.0, 0.0), Color::ZERO);
+        assert_eq!(tex.sample(Point3::new(0.0, 10.0, 0.0), 0.0, 0.0), Color::ONE);
+        assert_eq!(tex.sample(Point3::new(0.0, 999.0, 0.0), 0.0, 0.0), Color::ONE); // clamped past y1
     }
 
     #[test]
@@ -124,5 +193,31 @@ mod tests {
             let t = turbulence(p, 4);
             assert!((0.0..=1.0).contains(&t), "turbulence out of range: {t}");
         }
+    }
+
+    #[test]
+    fn image_texture_sample_matches_nearest_source_pixel_at_texel_centers() {
+        // A 2x2 image: red, green / blue, white. Sampling exactly at a
+        // texel center should reproduce that texel's color (no blending).
+        let pixels = vec![[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 255]];
+        let img = ImageTexture { width: 2, height: 2, pixels };
+        // v=0 is the bottom of the image per our convention, so v near 1
+        // samples the top row (red/green) and v near 0 samples blue/white.
+        assert_close(img.sample(0.25, 0.75), Color::new(1.0, 0.0, 0.0));
+        assert_close(img.sample(0.75, 0.75), Color::new(0.0, 1.0, 0.0));
+        assert_close(img.sample(0.25, 0.25), Color::new(0.0, 0.0, 1.0));
+        assert_close(img.sample(0.75, 0.25), Color::ONE);
+    }
+
+    #[test]
+    fn image_texture_wraps_beyond_unit_range() {
+        let pixels = vec![[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 255]];
+        let img = ImageTexture { width: 2, height: 2, pixels };
+        assert_eq!(img.sample(0.25, 0.75), img.sample(1.25, 0.75));
+        assert_eq!(img.sample(0.25, 0.75), img.sample(-0.75, 0.75));
+    }
+
+    fn assert_close(a: Color, b: Color) {
+        assert!((a - b).length() < 1e-6, "{a:?} != {b:?}");
     }
 }

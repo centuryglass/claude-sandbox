@@ -2,8 +2,9 @@ use crate::texture::Texture;
 
 /// Surface materials. Deliberately a plain data enum (not a trait object):
 /// at this scale a `match` in the shader is simpler and faster than dynamic
-/// dispatch, and it keeps `HitRecord` cheaply `Copy`.
-#[derive(Debug, Clone, Copy)]
+/// dispatch. `Clone` rather than `Copy` since `Texture::Image` carries an
+/// `Arc`-wrapped image (cheap to clone, not to bitwise-copy).
+#[derive(Debug, Clone)]
 pub enum Material {
     Lambertian { albedo: Texture },
     /// Mirror-like reflector. `fuzz` in [0, 1] jitters the reflected ray to

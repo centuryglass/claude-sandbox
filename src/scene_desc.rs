@@ -9,7 +9,7 @@ use crate::material::Material;
 use crate::mesh;
 use crate::scene::Scene;
 use crate::sphere::Sphere;
-use crate::texture::Texture;
+use crate::texture::{ImageTexture, Texture};
 use crate::vec3::Vec3;
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -106,28 +106,34 @@ pub enum LightDesc {
     Point { position: Vec3f, color: Vec3f, intensity: f64 },
 }
 
-#[derive(Deserialize, Clone, Copy)]
+#[derive(Deserialize, Clone)]
 pub enum TextureDesc {
     Solid(Vec3f),
     Checker { a: Vec3f, b: Vec3f, scale: f64 },
     Stripes { a: Vec3f, b: Vec3f, scale: f64, axis: usize },
     Gradient { bottom: Vec3f, top: Vec3f, y0: f64, y1: f64 },
     Noise { color: Vec3f, scale: f64, octaves: u32 },
+    /// Path to an image file (PNG/JPEG/...), sampled by UV coordinates.
+    /// Fallible (unlike every other variant here) since it means loading
+    /// and decoding a file from disk - hence `TextureDesc -> Texture` being
+    /// a `build` method returning `Result`, not a plain infallible `From`.
+    Image(String),
 }
 
-impl From<TextureDesc> for Texture {
-    fn from(t: TextureDesc) -> Texture {
-        match t {
+impl TextureDesc {
+    fn build(self) -> Result<Texture> {
+        Ok(match self {
             TextureDesc::Solid(c) => Texture::Solid(v(c)),
             TextureDesc::Checker { a, b, scale } => Texture::Checker { a: v(a), b: v(b), scale },
             TextureDesc::Stripes { a, b, scale, axis } => Texture::Stripes { a: v(a), b: v(b), scale, axis },
             TextureDesc::Gradient { bottom, top, y0, y1 } => Texture::Gradient { bottom: v(bottom), top: v(top), y0, y1 },
             TextureDesc::Noise { color, scale, octaves } => Texture::Noise { color: v(color), scale, octaves },
-        }
+            TextureDesc::Image(path) => Texture::Image(std::sync::Arc::new(ImageTexture::load(&path)?)),
+        })
     }
 }
 
-#[derive(Deserialize, Clone, Copy)]
+#[derive(Deserialize, Clone)]
 pub enum MaterialDesc {
     Lambertian { albedo: TextureDesc },
     Metal { albedo: TextureDesc, fuzz: f64 },
@@ -135,14 +141,14 @@ pub enum MaterialDesc {
     Emissive { color: TextureDesc, intensity: f64 },
 }
 
-impl From<MaterialDesc> for Material {
-    fn from(m: MaterialDesc) -> Material {
-        match m {
-            MaterialDesc::Lambertian { albedo } => Material::Lambertian { albedo: albedo.into() },
-            MaterialDesc::Metal { albedo, fuzz } => Material::Metal { albedo: albedo.into(), fuzz },
+impl MaterialDesc {
+    fn build(self) -> Result<Material> {
+        Ok(match self {
+            MaterialDesc::Lambertian { albedo } => Material::Lambertian { albedo: albedo.build()? },
+            MaterialDesc::Metal { albedo, fuzz } => Material::Metal { albedo: albedo.build()?, fuzz },
             MaterialDesc::Dielectric { ior } => Material::Dielectric { ior },
-            MaterialDesc::Emissive { color, intensity } => Material::Emissive { color: color.into(), intensity },
-        }
+            MaterialDesc::Emissive { color, intensity } => Material::Emissive { color: color.build()?, intensity },
+        })
     }
 }
 
@@ -168,10 +174,10 @@ impl SceneDesc {
         for obj in self.objects {
             match obj {
                 ObjectDesc::Sphere { center, radius, material } => {
-                    objects.push(Box::new(Sphere::new(v(center), radius, material.into())));
+                    objects.push(Box::new(Sphere::new(v(center), radius, material.build()?)));
                 }
                 ObjectDesc::Mesh { path, material, scale, translate } => {
-                    objects.push(mesh::load_obj(&path, material.into(), scale, v(translate))?);
+                    objects.push(mesh::load_obj(&path, material.build()?, scale, v(translate))?);
                 }
             }
         }

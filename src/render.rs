@@ -115,10 +115,10 @@ fn ray_color(
     };
 
     match rec.material {
-        Material::Emissive { color, intensity } => color.sample(rec.p) * intensity,
+        Material::Emissive { color, intensity } => color.sample(rec.p, rec.u, rec.v) * intensity,
 
         Material::Lambertian { albedo } => {
-            let albedo = albedo.sample(rec.p);
+            let albedo = albedo.sample(rec.p, rec.u, rec.v);
             let view_dir = -ray.direction.normalized();
             let mut color = scene.ambient * albedo;
             for light in &scene.lights {
@@ -144,7 +144,7 @@ fn ray_color(
         }
 
         Material::Metal { albedo, fuzz } => {
-            let albedo = albedo.sample(rec.p);
+            let albedo = albedo.sample(rec.p, rec.u, rec.v);
             // The flagship glitch: reflect the ORIGINAL camera ray's
             // direction instead of the direction the current bounce actually
             // arrived along. Every mirror in the scene ends up folding the
@@ -241,6 +241,8 @@ struct HitChainState {
     normal: Vec3,
     incoming: Vec3,
     material: Material,
+    u: f64,
+    v: f64,
     depth: u32,
 }
 
@@ -252,6 +254,8 @@ fn hit_chain_drift_color(ray: &Ray, scene: &Scene, rng: &mut impl Rng) -> Color 
         p: rec.p,
         normal: rec.normal,
         incoming: ray.direction.normalized(),
+        u: rec.u,
+        v: rec.v,
         material: rec.material,
         depth: HIT_CHAIN_INITIAL_DEPTH,
     };
@@ -271,12 +275,12 @@ fn mirror_coef_for(material: &Material) -> f64 {
     }
 }
 
-fn albedo_for(material: &Material, p: Point3) -> Color {
+fn albedo_for(material: &Material, p: Point3, u: f64, v: f64) -> Color {
     match material {
-        Material::Lambertian { albedo } => albedo.sample(p),
-        Material::Metal { albedo, .. } => albedo.sample(p),
+        Material::Lambertian { albedo } => albedo.sample(p, u, v),
+        Material::Metal { albedo, .. } => albedo.sample(p, u, v),
         Material::Dielectric { .. } => Color::new(0.9, 0.85, 0.95),
-        Material::Emissive { color, intensity } => color.sample(p) * *intensity,
+        Material::Emissive { color, intensity } => color.sample(p, u, v) * *intensity,
     }
 }
 
@@ -293,8 +297,8 @@ fn hit_chain_color(scene: &Scene, state: &mut HitChainState, rng: &mut impl Rng)
     // Not in the original (which had no emissive materials at all), but the
     // sane behavior: a light source shows its own glow, full stop, rather
     // than participating in the drift.
-    if let Material::Emissive { color, intensity } = state.material {
-        return color.sample(state.p) * intensity;
+    if let Material::Emissive { color, intensity } = &state.material {
+        return color.sample(state.p, state.u, state.v) * *intensity;
     }
 
     let mirror_coef = mirror_coef_for(&state.material);
@@ -310,7 +314,7 @@ fn hit_chain_color(scene: &Scene, state: &mut HitChainState, rng: &mut impl Rng)
             // Original bug: abs(N.L), not max(0, N.L) - back-facing samples
             // light up too.
             let m = state.normal.dot(sample.direction).abs();
-            let albedo = albedo_for(&state.material, state.p);
+            let albedo = albedo_for(&state.material, state.p, state.u, state.v);
             shade += (albedo * sample.color * m * shadow_mult) / HIT_CHAIN_REFLECTION_COUNT as f64;
 
             if mirror_coef > 0.0 && state.depth > 0 {
@@ -320,7 +324,7 @@ fn hit_chain_color(scene: &Scene, state: &mut HitChainState, rng: &mut impl Rng)
                 if let Some(rec) = scene.hit(&ray, SHADOW_EPS, f64::INFINITY) {
                     // calculateReflection(hit, scene): mutates the shared
                     // hit state to the new surface, unconditionally.
-                    *state = HitChainState { p: rec.p, normal: rec.normal, incoming: reflected_dir, material: rec.material, depth: state.depth };
+                    *state = HitChainState { p: rec.p, normal: rec.normal, incoming: reflected_dir, u: rec.u, v: rec.v, material: rec.material, depth: state.depth };
                     // rCol += hit.getHitColor(scene): computed, then thrown
                     // away when the shadowing local `rCol` goes out of
                     // scope. Only `state`'s mutation (including whatever
@@ -364,7 +368,7 @@ fn coin_flip_miss_color(ray: &Ray, rec: &HitRecord, scene: &Scene, incoming_ligh
     // to 0 - ordinary front-lit surfaces go dark; only grazing/back-facing
     // geometry (where this dot product happens to be positive) lights up.
     let m = ray.direction.normalized().dot(rec.normal).max(0.0);
-    let albedo = albedo_for(&rec.material, rec.p);
+    let albedo = albedo_for(&rec.material, rec.p, rec.u, rec.v);
     let mut shade = albedo * incoming_light * m;
 
     let mirror_coef = mirror_coef_for(&rec.material);

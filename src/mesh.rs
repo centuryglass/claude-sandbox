@@ -7,10 +7,9 @@ use anyhow::{Context, Result};
 use std::path::Path;
 
 /// Loads a Wavefront OBJ file into a BVH-accelerated triangle mesh.
-/// Supports `v`, `vn`, and `f` records; faces with >3 vertices are
-/// fan-triangulated. Texture coordinates (`vt`) are parsed but discarded -
-/// this renderer has no texturing yet. All faces share one material and are
-/// transformed by a uniform `scale` + `translate` applied at load time.
+/// Supports `v`, `vn`, `vt`, and `f` records; faces with >3 vertices are
+/// fan-triangulated. All faces share one material and are transformed by a
+/// uniform `scale` + `translate` applied at load time.
 pub fn load_obj(
     path: impl AsRef<Path>,
     material: Material,
@@ -23,6 +22,7 @@ pub fn load_obj(
 
     let mut positions: Vec<Point3> = Vec::new();
     let mut normals: Vec<Vec3> = Vec::new();
+    let mut texcoords: Vec<(f64, f64)> = Vec::new();
     let mut triangles: Vec<Box<dyn Hittable>> = Vec::new();
 
     for (line_no, line) in text.lines().enumerate() {
@@ -41,6 +41,11 @@ pub fn load_obj(
                     .with_context(|| format!("{}:{}: malformed `vn`", path.display(), line_no + 1))?;
                 normals.push(Vec3::new(xyz[0], xyz[1], xyz[2]).normalized());
             }
+            "vt" => {
+                let uv = parse_floats::<2>(tokens.by_ref())
+                    .with_context(|| format!("{}:{}: malformed `vt`", path.display(), line_no + 1))?;
+                texcoords.push((uv[0], uv[1]));
+            }
             "f" => {
                 let refs: Vec<VertexRef> = tokens
                     .map(parse_face_token)
@@ -51,12 +56,12 @@ pub fn load_obj(
                 }
                 // Fan triangulation: (0, i, i+1) for i in 1..len-1.
                 for i in 1..refs.len() - 1 {
-                    let tri = build_triangle(&positions, &normals, refs[0], refs[i], refs[i + 1], material)
+                    let tri = build_triangle(&positions, &normals, &texcoords, refs[0], refs[i], refs[i + 1], material.clone())
                         .with_context(|| format!("{}:{}: face vertex index out of range", path.display(), line_no + 1))?;
                     triangles.push(Box::new(tri));
                 }
             }
-            _ => {} // vt, comments, groups, materials, etc. - not needed yet.
+            _ => {} // comments, groups, materials, etc. - not needed yet.
         }
     }
 
@@ -67,6 +72,7 @@ pub fn load_obj(
 #[derive(Clone, Copy)]
 struct VertexRef {
     pos: i64,
+    uv: Option<i64>,
     normal: Option<i64>,
 }
 
@@ -79,12 +85,15 @@ fn parse_face_token(tok: &str) -> Result<VertexRef> {
         .filter(|s| !s.is_empty())
         .context("missing vertex position index")?
         .parse::<i64>()?;
-    let _vt = parts.next(); // texture coord index, unused
+    let uv = match parts.next() {
+        Some(s) if !s.is_empty() => Some(s.parse::<i64>()?),
+        _ => None,
+    };
     let normal = match parts.next() {
         Some(s) if !s.is_empty() => Some(s.parse::<i64>()?),
         _ => None,
     };
-    Ok(VertexRef { pos, normal })
+    Ok(VertexRef { pos, uv, normal })
 }
 
 fn resolve_index(idx: i64, len: usize) -> Option<usize> {
@@ -100,6 +109,7 @@ fn resolve_index(idx: i64, len: usize) -> Option<usize> {
 fn build_triangle(
     positions: &[Point3],
     normals: &[Vec3],
+    texcoords: &[(f64, f64)],
     a: VertexRef,
     b: VertexRef,
     c: VertexRef,
@@ -114,12 +124,19 @@ fn build_triangle(
     let v1 = get_pos(b)?;
     let v2 = get_pos(c)?;
 
-    let tri = Triangle::new(v0, v1, v2, material);
+    let mut tri = Triangle::new(v0, v1, v2, material);
+
     let get_normal = |r: VertexRef| resolve_index(r.normal?, normals.len()).map(|i| normals[i]);
-    match (get_normal(a), get_normal(b), get_normal(c)) {
-        (Some(n0), Some(n1), Some(n2)) => Ok(tri.with_normals(n0, n1, n2)),
-        _ => Ok(tri),
+    if let (Some(n0), Some(n1), Some(n2)) = (get_normal(a), get_normal(b), get_normal(c)) {
+        tri = tri.with_normals(n0, n1, n2);
     }
+
+    let get_uv = |r: VertexRef| resolve_index(r.uv?, texcoords.len()).map(|i| texcoords[i]);
+    if let (Some(uv0), Some(uv1), Some(uv2)) = (get_uv(a), get_uv(b), get_uv(c)) {
+        tri = tri.with_uvs(uv0, uv1, uv2);
+    }
+
+    Ok(tri)
 }
 
 fn parse_floats<'a, const N: usize>(tokens: impl Iterator<Item = &'a str>) -> Result<[f64; N]> {

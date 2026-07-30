@@ -1,0 +1,20 @@
+// The first image-texture demo: a UV-mapped photo instead of a procedural
+// pattern. assets/textures/earth.jpg is a public-domain NASA Blue Marble
+// composite (via three.js's example assets), equirectangular-projected,
+// which lines up exactly with Sphere's spherical UV mapping.
+// Render with: cargo run --release -- scenes/earth.ron -s 256
+(
+    camera: (
+        look_from: (0.0, 0.3, 3.2),
+        look_at: (0.0, 0.0, 0.0),
+        vfov: 35.0,
+    ),
+    sky_bottom: (0.02, 0.02, 0.05),
+    sky_top: (0.05, 0.05, 0.15),
+    lights: [
+        Point(position: (-4.0, 2.0, 3.0), color: (1.0, 1.0, 0.95), intensity: 30.0),
+    ],
+    objects: [
+        Sphere(center: (0.0, 0.0, 0.0), radius: 1.2, material: Lambertian(albedo: Image("assets/textures/earth.jpg"))),
+    ],
+)
