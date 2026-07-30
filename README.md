@@ -298,10 +298,23 @@ reflection axis carves a sharp black crescent out of:
 
 The spiral horn scene puts the camera deep in the throat instead, looking
 back out through the twisting, fluted walls - the same `hit-chain-drift` bug
-hitting a differently-shaped complex enclosure, for comparison:
+hitting a differently-shaped complex enclosure, for comparison. This pairing
+turned out to be the closest the whole gallery gets to the original 2013
+reference photo that started this project: the fluted geometry alone (left,
+*zero* glitch applied) already produces sharp angular color wedges, and
+`hit-chain-drift` (right) pushes the crystal into the same dense fractured-
+facet density as the original:
 
 <p align="center">
   <img src="gallery/spiral_horn_interior_reference.png" width="400" alt="Camera inside the spiral horn's throat, correctly rendered: fluted checkered walls curling around a refracting crystal"><img src="gallery/spiral_horn_interior_hit_chain_drift.png" width="400" alt="Same view under hit-chain-drift: the crystal again collapses into a dark fragmented mosaic">
+</p>
+
+`angular-fold` on the same throat gives a cleaner, more crystalline read -
+bold flat color wedges reflected across the crystal's facets rather than
+mosaic fragmentation:
+
+<p align="center">
+  <img src="gallery/spiral_horn_interior_angular_fold.png" width="600" alt="Spiral horn interior under angular-fold: bold flat color wedges reflected across the crystal facets">
 </p>
 
 Render either with:
