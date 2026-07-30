@@ -1,16 +1,16 @@
 // The stereographic ("little planet") projection at work: camera hovering
-// straight above a ring of crystals and spheres, wide enough field of view
-// (280 degrees) that the ground curls into a horizon-ring around a central
-// crystal. Looking straight down means the default up-vector is degenerate
-// (parallel to the view direction), hence the explicit `vup`.
+// just above a ring of crystals and spheres, with a field of view (200
+// degrees) wide enough that the ground curls into a horizon-ring around a
+// central crystal. Looking straight down means the default up-vector is
+// degenerate (parallel to the view direction), hence the explicit `vup`.
 // Render with: cargo run --release -- scenes/little_planet.ron
 (
     camera: (
-        look_from: (0.0, 1.8, -1.0),
+        look_from: (0.0, 1.2, -1.0),
         look_at: (0.0, -1.0, -1.0),
         vup: (0.0, 0.0, -1.0),
         kind: Stereographic,
-        vfov: 280.0,
+        vfov: 200.0,
     ),
     ambient: (0.12, 0.12, 0.12),
     sky_bottom: (0.85, 0.15, 0.55),

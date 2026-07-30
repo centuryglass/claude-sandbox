@@ -160,6 +160,62 @@ under `normal-drift`:
   <img src="gallery/bunny.png" width="440" alt="Stanford bunny, correctly rendered"><img src="gallery/bunny_normal_drift.png" width="440" alt="Stanford bunny under the normal-drift glitch">
 </p>
 
+## Camera projections
+
+`src/camera.rs` used to be a single hard-coded pinhole/perspective camera.
+It's now an enum of five, selectable per scene via `camera.kind` (default
+`Perspective`, so every scene file written before this field existed keeps
+rendering exactly as before - the perspective variant is a straight
+byte-identical refactor, checked by a regression test against the original
+formula). Non-perspective projections don't have a `vfov` in the perspective
+sense, so each one takes the parameter that actually describes it instead of
+overloading a field that means something different every time: `Orthographic`
+takes `height` (a world-space viewport size, since parallel rays have no
+convergence to size instead), `Fisheye`/`Stereographic` take `vfov` but as a
+literal angular field of view - up to 360 degrees for a full-sphere image -
+rather than perspective's `tan`-based approximation, and `Equirectangular`
+takes neither field at all, since it always covers the entire sphere around
+the camera regardless of how wide you'd like it to be.
+
+Fisheye and equirectangular in particular reward putting the camera close to
+or inside a cluster of objects rather than the usual outside-looking-in
+distance perspective scenes favor. `scenes/fisheye_crystal.ron` tucks the
+camera right up against the crystal cluster's flank with a 165-degree
+equidistant field of view:
+
+<p align="center">
+  <img src="gallery/fisheye_crystal.png" width="600" alt="Crystal cluster shot with a 165-degree fisheye camera from close range, facets bulging toward the frame edges">
+</p>
+
+`scenes/equirect_crystal.ron` sits the camera in the middle of a ring of
+crystals and mirror spheres and renders the full 360x180 panorama around it -
+objects both ahead of and behind `look_at` land in the same frame, wrapped
+across the left/right seam:
+
+<p align="center">
+  <img src="gallery/equirect_crystal.png" width="600" alt="Full 360-degree equirectangular panorama of a ring of crystals and mirror spheres">
+</p>
+
+`scenes/little_planet.ron` uses `Stereographic`: a fisheye variant with a
+`r = 2 tan(theta / 2)` radius-to-angle mapping instead of `Fisheye`'s linear
+one, which compresses angles well past 90 degrees much harder toward the
+frame edge. Point it straight down at a ring of objects on the ground with a
+wide enough field of view and the horizon curls into a full circle - the
+classic "little planet" trick, produced directly by the camera model instead
+of as a post-process on an equirectangular source image:
+
+<p align="center">
+  <img src="gallery/little_planet.png" width="500" alt="Stereographic little-planet projection: a ring of crystals and spheres on a ground plane curled into a full sphere">
+</p>
+
+Non-perspective projections also turn out to be an interesting way to look at
+the glitch gallery, since there's no perspective convergence competing with
+whatever the glitch is already doing to shape:
+
+| | |
+|---|---|
+| ![orthographic axis-swap-reflect](gallery/orthographic_axis_swap.png) `Orthographic` + `axis-swap-reflect` — parallel rays, no convergence, paired with the cyclic-component-permutation reflection bug: the mirror sphere goes flat black split by a hard color edge instead of the usual mottled faceting. | ![equirectangular hit-chain-drift](gallery/equirect_hit_chain_drift.png) `Equirectangular` + `hit-chain-drift` — the discarded-reflection walk reads as uniformly flat and dark across the whole panorama; without a patterned texture to reveal the walk (contrast with "The real bug" above), every reflective/refractive surface just goes matte. |
+
 ## Usage
 
 ```sh
@@ -216,6 +272,12 @@ definition. Shape:
 `albedo` takes a `Texture`: `Solid((r,g,b))`, `Checker(a:.., b:.., scale:..)`,
 `Stripes(a:.., b:.., scale:.., axis:0|1|2)`, `Gradient(bottom:.., top:.., y0:.., y1:..)`,
 or `Noise(color:.., scale:.., octaves:..)`.
+
+`camera` also takes an optional `kind` (`Perspective` by default) plus
+`height`, only meaningful for `Orthographic` - see "Camera projections"
+above. `scenes/fisheye_crystal.ron`, `scenes/equirect_crystal.ron`,
+`scenes/orthographic_crystal.ron`, and `scenes/little_planet.ron` are
+complete examples of each non-default kind.
 
 ## Project layout
 

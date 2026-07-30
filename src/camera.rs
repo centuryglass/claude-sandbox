@@ -1,8 +1,8 @@
 use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
 
-/// A camera projection. Plain data enum with a `match` in [`Camera::get_ray`]
-/// - same style as [`crate::material::Material`] and [`crate::texture::Texture`],
+/// A camera projection. Plain data enum with a `match` in [`Camera::get_ray`],
+/// same style as [`crate::material::Material`] and [`crate::texture::Texture`]
 /// and for the same reason: at this scale a match is simpler and faster than
 /// trait-object dispatch, and every variant is cheap to keep around.
 ///
