@@ -124,6 +124,18 @@ rather than a fixed decal on the objects:
   <img src="gallery/crystal_angular_fold_turntable.gif" width="500" alt="Turntable animation of the crystal cluster under angular-fold">
 </p>
 
+`hit-chain-drift` in motion shows a side of the bug stills don't: since it
+has no real reflection to fill in a surface's dark side, whichever facets
+face away from the single light in this scene go essentially silhouette-
+black as the camera orbits past them, alternating with the bright chaotic
+patchwork on the lit side - lighting-angle sensitivity that's authentic to
+the original bug (there was never a "reflected" fill light, just this
+chaotic walk of *direct* light samples), not a rendering artifact:
+
+<p align="center">
+  <img src="gallery/hit_chain_drift_turntable.gif" width="500" alt="Turntable animation of the crystal cluster under hit-chain-drift">
+</p>
+
 It even holds up on a real mesh - the Stanford bunny (69,451 triangles)
 under `normal-drift`:
 
