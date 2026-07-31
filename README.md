@@ -1,7 +1,10 @@
 # lumin
-
 A ray tracer written from scratch in Rust, plus a gallery of renderers that
 deliberately get the physics *wrong* on purpose.
+
+[Note: I gave Claude a thirteen year old bug from an old student project
+of mine that produced some interesting results back then, and Claude gave
+me all of this in less than a day. -Anthony Brown]
 
 The honest half is a fairly standard Whitted-style ray tracer: spheres and
 triangle meshes, a hand-rolled OBJ loader, a BVH for acceleration, point and
